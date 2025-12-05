@@ -1,3 +1,46 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  /* 极致黑白 */
+  @apply bg-[#0a0a0a] text-[#ededed] min-h-screen antialiased;
+  /* 移除之前的渐变背景，保持纯净 */
+}
+
+/* 极简滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-neutral-800 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-neutral-600;
+}
+
+/* === 高级质感组件 === */
+@layer components {
+  /* 极简卡片：纯黑底 + 极细微的深灰边框 */
+  .minimal-card {
+    @apply bg-neutral-900/40 border border-neutral-800 transition-all duration-300;
+  }
+  
+  /* 悬停效果：边框变亮，而不是发光 */
+  .minimal-card:hover {
+    @apply border-neutral-600 bg-neutral-900;
+  }
+
+  /* 主按钮：纯白底黑字，极致对比 */
+  .btn-primary {
+    @apply bg-white text-black font-medium px-4 py-2 rounded-md hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* 次要按钮：纯黑底白边框 */
+  .btn-secondary {
+    @apply bg-transparent border border-neutral-700 text-neutral-300 px-4 py-2 rounded-md hover:border-white hover:text-white transition-colors;
+  }
+}

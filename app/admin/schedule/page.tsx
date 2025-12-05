@@ -10,217 +10,154 @@ export default function AdminSchedulePage() {
   const [matches, setMatches] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
-  // 1. 页面加载时，先获取所有赛事列表
-  useEffect(() => {
-    fetchTournaments()
-  }, [])
+  useEffect(() => { fetchTournaments() }, [])
 
-  // 2. 当用户选择了某个赛事，去加载对应的赛程
   useEffect(() => {
-    if (selectedTournamentId) {
-      fetchMatches(selectedTournamentId)
-    } else {
-      setMatches([])
-    }
+    if (selectedTournamentId) fetchMatches(selectedTournamentId)
+    else setMatches([])
   }, [selectedTournamentId])
 
   const fetchTournaments = async () => {
-    const { data } = await supabase
-      .from('tournaments')
-      .select('*')
-      .order('created_at', { ascending: false }) // 新建的排前面
-    
+    const { data } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false })
     if (data && data.length > 0) {
       setTournaments(data)
-      // 默认选中最新的一个赛事 (可选)
       setSelectedTournamentId(String(data[0].id))
     }
   }
 
   const fetchMatches = async (tournamentId: string) => {
     setLoading(true)
-    const { data } = await supabase
-      .from('matches')
-      .select(`
-        *, 
-        home_team:teams!home_team_id(name), 
-        away_team:teams!away_team_id(name)
-      `)
-      .eq('tournament_id', tournamentId)
-      .order('start_time', { ascending: true }) // 按时间正序
-      
+    const { data } = await supabase.from('matches')
+      .select(`*, home_team:teams!home_team_id(name), away_team:teams!away_team_id(name)`)
+      .eq('tournament_id', tournamentId).order('start_time', { ascending: true })
     if (data) setMatches(data)
     setLoading(false)
   }
 
-  // === 危险操作：清空当前赛事的赛程 ===
   const handleClearSchedule = async () => {
-    if (!selectedTournamentId) return
-    if (!confirm('⚠️ 高能预警！\n\n确定要【清空】该赛事下的所有比赛和数据吗？\n此操作不可恢复！')) return
-
+    if (!selectedTournamentId || !confirm('⚠️ 确定要清空该赛事的所有赛程吗？此操作不可逆！')) return
     setLoading(true)
-    // 因为设置了级联删除，删了 match 会自动删 stats
-    const { error } = await supabase
-        .from('matches')
-        .delete()
-        .eq('tournament_id', selectedTournamentId)
-
-    if (error) {
-        alert('清空失败: ' + error.message)
-    } else {
-        alert('✅ 赛程已清空，你可以重新生成了。')
-        fetchMatches(selectedTournamentId) // 刷新列表
-    }
+    const { error } = await supabase.from('matches').delete().eq('tournament_id', selectedTournamentId)
+    if (!error) { alert('已清空'); fetchMatches(selectedTournamentId) }
     setLoading(false)
   }
 
-  // === 危险操作：删除整个赛事 ===
   const handleDeleteTournament = async () => {
-    if (!selectedTournamentId) return
-    if (!confirm('🧨 毁灭性操作！\n\n确定要【删除整个赛事】吗？\n这将连带删除该赛事下的所有赛程、比分、统计数据！')) return
-
+    if (!selectedTournamentId || !confirm('🧨 确定要删除整个赛事吗？')) return
     setLoading(true)
-    const { error } = await supabase
-        .from('tournaments')
-        .delete()
-        .eq('id', selectedTournamentId)
-
-    if (error) {
-        alert('删除失败: ' + error.message)
-    } else {
-        alert('✅ 赛事已彻底删除。')
-        // 删除后，刷新列表并选中下一个
-        const remaining = tournaments.filter(t => String(t.id) !== selectedTournamentId)
-        setTournaments(remaining)
-        if (remaining.length > 0) setSelectedTournamentId(String(remaining[0].id))
-        else setSelectedTournamentId('')
+    const { error } = await supabase.from('tournaments').delete().eq('id', selectedTournamentId)
+    if (!error) {
+      alert('赛事已删除')
+      const remaining = tournaments.filter(t => String(t.id) !== selectedTournamentId)
+      setTournaments(remaining)
+      setSelectedTournamentId(remaining[0] ? String(remaining[0].id) : '')
     }
     setLoading(false)
   }
 
   return (
-    <div className="space-y-6 text-white pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-2xl font-bold">📅 赛事录入 & 管理</h1>
-        
-        {/* 顶部筛选器 */}
-        <div className="flex items-center gap-4 w-full md:w-auto bg-slate-800 p-2 rounded-lg border border-slate-700">
-            <span className="text-sm text-slate-400 pl-2 whitespace-nowrap">当前管理赛事:</span>
+    <div className="space-y-8 pb-20">
+      {/* 头部：标题与选择器 */}
+      <div className="bg-slate-800/50 backdrop-blur border-b border-white/5 p-6 -mx-4 md:mx-0 md:rounded-xl md:border mb-6">
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">赛程管理控制台</h1>
+            <p className="text-slate-400 text-sm">选择赛事进行排期或比分录入</p>
+          </div>
+          
+          <div className="relative">
             <select 
-                value={selectedTournamentId} 
-                onChange={(e) => setSelectedTournamentId(e.target.value)}
-                className="bg-slate-900 border border-slate-600 text-white text-sm rounded px-3 py-1.5 focus:border-blue-500 outline-none flex-1 md:w-64"
+              value={selectedTournamentId} 
+              onChange={(e) => setSelectedTournamentId(e.target.value)}
+              className="w-full md:w-64 appearance-none bg-slate-900 border border-slate-600 text-white text-sm rounded-lg px-4 py-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer hover:bg-slate-800 transition"
             >
-                {tournaments.length === 0 && <option value="">无赛事</option>}
-                {tournaments.map(t => (
-                    <option key={t.id} value={t.id}>
-                        {t.name} ({t.format === 'league' ? '单循环' : t.format === 'knockout' ? '淘汰赛' : '双循环'})
-                    </option>
-                ))}
+              {tournaments.length === 0 && <option value="">无赛事</option>}
+              {tournaments.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.format === 'league' ? '单循环' : '淘汰/其他'})
+                </option>
+              ))}
             </select>
+            {/* 模拟下箭头 */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+            </div>
+          </div>
         </div>
       </div>
       
-      {/* 赛事操作栏 (仅当选中赛事时显示) */}
+      {/* 危险操作区 */}
       {selectedTournamentId && (
-          <div className="bg-slate-900/50 border border-slate-700/50 p-4 rounded-lg flex justify-between items-center">
-              <div className="text-xs text-slate-400">
-                  赛事 ID: {selectedTournamentId} | 共 {matches.length} 场比赛
-              </div>
-              <div className="flex gap-3">
-                  <button 
-                    onClick={handleClearSchedule}
-                    className="text-xs text-red-400 hover:text-red-300 hover:bg-red-900/30 px-3 py-1.5 rounded border border-red-900/30 transition"
-                  >
-                    🗑️ 清空所有赛程
-                  </button>
-                  <button 
-                    onClick={handleDeleteTournament}
-                    className="text-xs bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded font-bold transition shadow-lg"
-                  >
-                    💣 删除整个赛事
-                  </button>
-              </div>
+        <div className="bg-red-900/10 border border-red-500/20 p-4 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2 text-red-200 text-sm">
+            <span className="animate-pulse">⚠️</span>
+            <span>当前选中 ID: <span className="font-mono">{selectedTournamentId}</span> ({matches.length} 场比赛)</span>
           </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <button onClick={handleClearSchedule} className="flex-1 md:flex-none text-xs text-red-300 hover:text-white hover:bg-red-600/50 px-4 py-2 rounded border border-red-500/30 transition">
+              清空赛程
+            </button>
+            <button onClick={handleDeleteTournament} className="flex-1 md:flex-none text-xs bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-bold shadow-lg shadow-red-900/20 transition">
+              删除赛事
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 赛程列表 */}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden min-h-[400px]">
+      <div className="space-y-4">
         {loading ? (
-            <div className="p-10 text-center text-slate-500">数据加载中...</div>
+          <div className="p-20 text-center text-slate-500 animate-pulse">正在从云端同步数据...</div>
         ) : matches.length > 0 ? (
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-400">
-                <thead className="bg-slate-900 text-slate-200 uppercase">
-                    <tr>
-                    <th className="p-4 w-32">轮次/时间</th>
-                    <th className="p-4">对阵详情</th>
-                    <th className="p-4 w-24">类型</th>
-                    <th className="p-4 w-24">状态</th>
-                    <th className="p-4 text-right">操作</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-700">
-                    {matches.map((match) => (
-                    <tr key={match.id} className="hover:bg-slate-700/50 transition-colors">
-                        <td className="p-4">
-                            <div className="font-bold text-white">{match.round_name || '-'}</div>
-                            <div className="text-xs text-slate-500 mt-1">
-                                {new Date(match.start_time).toLocaleDateString()}
-                                <br/>
-                                {new Date(match.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </div>
-                        </td>
-                        <td className="p-4">
-                            <div className="flex items-center gap-2 text-white font-bold text-lg">
-                                <span className={match.home_score > match.away_score ? 'text-yellow-400' : ''}>{match.home_team?.name}</span>
-                                <span className="text-slate-600 text-sm font-normal mx-1">vs</span>
-                                <span className={match.away_score > match.home_score ? 'text-yellow-400' : ''}>{match.away_team?.name}</span>
-                            </div>
-                            {match.is_finished && (
-                                <div className="text-xs font-mono text-slate-400 mt-1">
-                                    比分: {match.home_score} - {match.away_score}
-                                </div>
-                            )}
-                        </td>
-                        <td className="p-4">
-                             {match.match_type === 'soft' ? (
-                                 <span className="px-2 py-0.5 rounded bg-blue-900/30 text-blue-400 border border-blue-800 text-xs">软镖</span>
-                             ) : (
-                                 <span className="px-2 py-0.5 rounded bg-orange-900/30 text-orange-400 border border-orange-800 text-xs">硬镖</span>
-                             )}
-                        </td>
-                        <td className="p-4">
-                        {match.is_finished ? 
-                            <span className="text-green-400 bg-green-900/30 px-2 py-1 rounded text-xs border border-green-800">已完赛</span> : 
-                            <span className="text-slate-400 bg-slate-900/50 px-2 py-1 rounded text-xs border border-slate-700">未开始</span>
-                        }
-                        </td>
-                        <td className="p-4 text-right">
-                        <Link 
-                            href={`/admin/matches/${match.id}`} 
-                            className="inline-block bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-xs font-bold transition shadow-lg hover:shadow-blue-500/20"
-                        >
-                            ✏️ 录入
-                        </Link>
-                        </td>
-                    </tr>
-                    ))}
-                </tbody>
-                </table>
-            </div>
+          <div className="grid gap-3">
+            {matches.map((match) => (
+              <div key={match.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex flex-col md:flex-row items-center gap-4 hover:border-blue-500/30 transition-colors">
+                
+                {/* 时间与轮次 */}
+                <div className="flex flex-row md:flex-col justify-between w-full md:w-32 shrink-0 text-sm">
+                  <span className="font-bold text-slate-300">{match.round_name}</span>
+                  <div className="text-slate-500 text-xs mt-0.5">
+                    {new Date(match.start_time).toLocaleDateString()}
+                  </div>
+                </div>
+
+                {/* 对阵 */}
+                <div className="flex-1 grid grid-cols-3 items-center w-full gap-2">
+                  <div className={`text-right font-bold truncate ${match.home_score > match.away_score ? 'text-yellow-400' : 'text-slate-300'}`}>
+                    {match.home_team?.name}
+                  </div>
+                  <div className="text-center">
+                    {match.is_finished ? (
+                      <span className="bg-slate-950 px-3 py-1 rounded text-white font-mono font-bold tracking-widest border border-slate-700">
+                        {match.home_score}:{match.away_score}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600 text-xs">VS</span>
+                    )}
+                  </div>
+                  <div className={`text-left font-bold truncate ${match.away_score > match.home_score ? 'text-yellow-400' : 'text-slate-300'}`}>
+                    {match.away_team?.name}
+                  </div>
+                </div>
+
+                {/* 标签与操作 */}
+                <div className="flex items-center justify-between w-full md:w-auto gap-4 mt-2 md:mt-0 pt-2 md:pt-0 border-t border-slate-700 md:border-0">
+                  <span className={`text-xs px-2 py-0.5 rounded border ${match.match_type === 'soft' ? 'bg-blue-900/20 border-blue-800 text-blue-400' : 'bg-orange-900/20 border-orange-800 text-orange-400'}`}>
+                    {match.match_type === 'soft' ? '软镖' : '硬镖'}
+                  </span>
+                  
+                  <Link href={`/admin/matches/${match.id}`} className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold shadow-lg shadow-blue-900/20 transition flex items-center gap-2">
+                    <span>✏️</span> 录入
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
-            <div className="flex flex-col items-center justify-center h-[400px] text-slate-500 gap-4">
-                <div className="text-4xl">📭</div>
-                <p>该赛事暂无赛程安排</p>
-                {selectedTournamentId ? (
-                    <Link href="/admin/tournaments" className="text-blue-400 hover:underline text-sm">
-                        去创建赛程 →
-                    </Link>
-                ) : (
-                    <p className="text-sm">请先在上方选择一个赛事</p>
-                )}
-            </div>
+          <div className="flex flex-col items-center justify-center py-20 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
+            <div className="text-4xl mb-4 opacity-50">📅</div>
+            <p className="text-slate-400">暂无赛程安排</p>
+          </div>
         )}
       </div>
     </div>

@@ -1,75 +1,96 @@
-import { supabase } from '../lib/supabase'; // 引入我们之前配置好的连接器
+import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
-// 这是一个“服务端组件”，它会直接在服务器上请求数据，速度很快，且利于SEO
 export default async function RankingsPage() {
-  
-  // 1. 直接向 Supabase 请求 teams 表的数据，并按积分排序（假设还没积分，先按创建时间）
-  // 注意：我们在SQL里还没加积分字段，这里先读取基本信息
   const { data: teams, error } = await supabase
     .from('teams')
     .select('*')
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true }); // 暂时按时间，以后按 points
 
-  if (error) {
-    return <div className="text-red-500 p-10">数据读取失败: {error.message}</div>;
-  }
+  if (error) return <div className="p-8 text-center text-red-400">数据加载异常</div>;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-8">
-      {/* 顶部导航栏 */}
-      <div className="max-w-4xl mx-auto mb-8 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-blue-400">战队排行榜</h1>
-        <Link href="/" className="px-4 py-2 bg-slate-800 rounded hover:bg-slate-700 text-sm">
-          ← 返回首页
+    <div className="min-h-screen p-4 md:p-8 space-y-8">
+      {/* Header */}
+      <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-4xl font-black text-white italic tracking-tighter">
+            LEAGUE <span className="text-blue-500">RANKINGS</span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-2">常规赛积分榜 / Season 1</p>
+        </div>
+        <Link href="/" className="text-sm font-medium text-slate-400 hover:text-white transition flex items-center gap-1">
+          <span className="text-lg">↩</span> 返回首页
         </Link>
       </div>
 
-      {/* 表格区域 */}
-      <div className="max-w-4xl mx-auto bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
-        <table className="w-full text-left">
-          <thead className="bg-slate-950 text-slate-400 uppercase text-sm font-semibold">
-            <tr>
-              <th className="p-4 w-20">排名</th>
-              <th className="p-4">战队名称</th>
-              <th className="p-4">队长ID</th>
-              <th className="p-4 text-right">积分 (示例)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-700">
-            {/* 2. 这里的 teams 就是从数据库取回来的数组 */}
-            {teams && teams.length > 0 ? (
-              teams.map((team, index) => (
-                <tr key={team.id} className="hover:bg-slate-700/50 transition-colors">
-                  <td className="p-4 font-mono text-slate-500">#{index + 1}</td>
-                  <td className="p-4 font-bold text-lg flex items-center gap-3">
-                    {/* 如果有队徽就显示，没有就显示默认圆圈 */}
+      {/* 列表容器 */}
+      <div className="max-w-5xl mx-auto space-y-3">
+        
+        {/* 表头 (仅在大屏显示) */}
+        <div className="hidden md:grid grid-cols-12 px-6 text-xs font-bold text-slate-500 uppercase tracking-widest pb-2">
+          <div className="col-span-1">Rank</div>
+          <div className="col-span-5">Team Name</div>
+          <div className="col-span-3">Captain</div>
+          <div className="col-span-3 text-right">Points</div>
+        </div>
+
+        {/* 数据行 */}
+        {teams && teams.length > 0 ? (
+          teams.map((team, index) => {
+            // 计算前三名的样式
+            const isTop3 = index < 3;
+            const rankColor = index === 0 ? 'text-yellow-400' : index === 1 ? 'text-slate-300' : index === 2 ? 'text-amber-600' : 'text-slate-500';
+            const borderColor = index === 0 ? 'border-yellow-500/50' : 'border-white/5';
+            
+            return (
+              <div 
+                key={team.id} 
+                className={`group relative grid grid-cols-12 items-center bg-slate-800/50 backdrop-blur hover:bg-slate-800 border ${borderColor} rounded-xl p-4 transition-all hover:scale-[1.01] hover:shadow-xl`}
+              >
+                {/* 排名 */}
+                <div className={`col-span-2 md:col-span-1 text-2xl font-black italic ${rankColor}`}>
+                  #{index + 1}
+                </div>
+
+                {/* 战队信息 */}
+                <div className="col-span-7 md:col-span-5 flex items-center gap-4">
+                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-slate-700 ring-2 ring-white/10 flex items-center justify-center overflow-hidden shrink-0">
                     {team.logo_url ? (
-                      <img src={team.logo_url} className="w-8 h-8 rounded-full bg-slate-600 object-cover" />
+                      <img src={team.logo_url} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs">
-                        {team.name.substring(0,1)}
-                      </div>
+                      <span className="font-bold text-slate-400 text-sm">{team.name.substring(0,1)}</span>
                     )}
-                    {team.name}
-                  </td>
-                  <td className="p-4 text-slate-400 text-sm">
-                    {team.captain_id ? '已指定' : '暂无'}
-                  </td>
-                  <td className="p-4 text-right font-mono text-yellow-500">
-                    0 {/* 暂时写死，后续我们做积分统计逻辑 */}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="p-8 text-center text-slate-500">
-                  暂无战队数据，请先去 Supabase 后台添加几条测试数据。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  </div>
+                  <div>
+                    <div className="font-bold text-white text-lg leading-tight group-hover:text-blue-400 transition-colors">
+                      {team.name}
+                    </div>
+                    {/* 手机端显示的次要信息 */}
+                    <div className="md:hidden text-xs text-slate-500 mt-1">
+                      CPT: {team.captain_id ? '已指定' : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 队长 (大屏显示) */}
+                <div className="hidden md:block col-span-3 text-sm text-slate-400">
+                  {team.captain_id ? <span className="bg-slate-900 px-2 py-1 rounded text-xs">Captain Set</span> : '未指定'}
+                </div>
+
+                {/* 积分 */}
+                <div className="col-span-3 text-right">
+                  <span className="font-mono text-xl md:text-2xl font-bold text-white tracking-widest">0</span>
+                  <span className="text-xs text-slate-500 ml-1">PTS</span>
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <div className="p-12 text-center text-slate-500 border border-dashed border-slate-700 rounded-xl">
+            暂无战队数据
+          </div>
+        )}
       </div>
     </div>
   );
