@@ -370,12 +370,12 @@ export default function AdminTeamsPage() {
     <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-6 text-white">
       
       {/* 左侧：队伍列表 */}
-      <div className="w-full md:w-1/3 bg-slate-800 rounded-xl border border-slate-700 flex flex-col">
-        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+      <div className="w-full md:w-1/3 bg-neutral-900 rounded-xl border border-neutral-800 flex flex-col">
+        <div className="p-4 border-b border-neutral-800 flex justify-between items-center">
             <h2 className="font-bold">战队列表 ({teams.length})</h2>
             <button 
                 onClick={() => { setIsCreating(true); setSelectedTeam(null); setTeamForm({name:'', logo_url:''}) }}
-                className="bg-green-600 hover:bg-green-500 text-xs px-3 py-1.5 rounded font-bold"
+                className="bg-white hover:bg-neutral-200 text-black text-xs px-3 py-1.5 rounded font-bold"
             >
                 + 新建战队
             </button>
@@ -385,10 +385,10 @@ export default function AdminTeamsPage() {
                 <div 
                     key={team.id}
                     onClick={() => handleSelectTeam(team)}
-                    className={`p-3 rounded cursor-pointer flex items-center justify-between transition ${selectedTeam?.id === team.id ? 'bg-blue-600' : 'hover:bg-slate-700'}`}
+                    className={`p-3 rounded cursor-pointer flex items-center justify-between transition ${selectedTeam?.id === team.id ? 'bg-white text-black' : 'hover:bg-neutral-900'}`}
                 >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-8 h-8 rounded bg-slate-900 flex items-center justify-center overflow-hidden shrink-0">
+                        <div className="w-8 h-8 rounded bg-neutral-950 flex items-center justify-center overflow-hidden shrink-0">
                             {team.logo_url ? (
                                 <img src={team.logo_url} className="w-full h-full object-cover" alt={team.name} />
                             ) : (
@@ -398,7 +398,7 @@ export default function AdminTeamsPage() {
                         <span className="font-bold truncate">{team.name}</span>
                     </div>
                     {team.captain_id && (
-                        <span className="text-[10px] text-yellow-400 font-bold shrink-0 ml-2">👑</span>
+                        <span className="text-[10px] text-white font-bold shrink-0 ml-2">👑</span>
                     )}
                 </div>
             ))}
@@ -406,21 +406,21 @@ export default function AdminTeamsPage() {
       </div>
 
       {/* 右侧：编辑区域 */}
-      <div className="w-full md:w-2/3 bg-slate-800 rounded-xl border border-slate-700 p-6 overflow-y-auto">
+      <div className="w-full md:w-2/3 bg-neutral-900 rounded-xl border border-neutral-800 p-6 overflow-y-auto">
         {(selectedTeam || isCreating) ? (
             <div className="space-y-8">
                 {/* 1. 基本信息 */}
                 <div className="space-y-4">
-                    <h3 className="text-xl font-bold border-b border-slate-700 pb-2">
+                    <h3 className="text-xl font-bold border-b border-neutral-800 pb-2">
                         {isCreating ? '新建战队' : '编辑战队信息'}
                     </h3>
                     <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs text-slate-400">战队名称</label>
+                            <label className="text-xs text-neutral-400">战队名称</label>
                             <input 
                                 value={teamForm.name}
                                 onChange={e => setTeamForm({...teamForm, name: e.target.value})}
-                                className="w-full bg-slate-900 border border-slate-600 p-2 rounded mt-1"
+                                className="w-full bg-neutral-950 border border-neutral-800 p-2 rounded mt-1"
                             />
                         </div>
                         <div>
@@ -429,16 +429,16 @@ export default function AdminTeamsPage() {
                                 value={teamForm.logo_url}
                                 onChange={e => setTeamForm({...teamForm, logo_url: e.target.value})}
                                 placeholder="https://..."
-                                className="w-full bg-slate-900 border border-slate-600 p-2 rounded mt-1"
+                                className="w-full bg-neutral-950 border border-neutral-800 p-2 rounded mt-1"
                             />
                         </div>
                     </div>
                     <div className="flex gap-3">
-                        <button onClick={handleSaveTeam} className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-bold">
+                        <button onClick={handleSaveTeam} className="bg-white hover:bg-neutral-200 text-black px-6 py-2 rounded font-bold">
                             {isCreating ? '立即创建' : '保存修改'}
                         </button>
                         {!isCreating && (
-                            <button onClick={() => handleDeleteTeam(selectedTeam.id)} className="bg-red-900/50 text-red-400 hover:bg-red-900 border border-red-800 px-4 py-2 rounded text-sm">
+                            <button onClick={() => handleDeleteTeam(selectedTeam.id)} className="bg-neutral-900 text-neutral-300 hover:bg-neutral-800 border border-neutral-800 px-4 py-2 rounded text-sm">
                                 删除战队
                             </button>
                         )}
@@ -454,15 +454,15 @@ export default function AdminTeamsPage() {
                          </h3>
                          
                          {/* 添加队员搜索框 */}
-                         <div className="bg-slate-900 p-3 rounded border border-slate-600">
-                            <label className="text-xs text-slate-400 mb-2 block">
+                         <div className="bg-neutral-950 p-3 rounded border border-neutral-800">
+                            <label className="text-xs text-neutral-400 mb-2 block">
                               添加新队员 (无战队用户: {allUsers.length} 人)
                             </label>
                             {allUsers.length === 0 ? (
-                              <div className="text-slate-500 text-sm py-2">所有用户都已加入战队</div>
+                              <div className="text-neutral-500 text-sm py-2">所有用户都已加入战队</div>
                             ) : (
                               <select 
-                                  className="w-full bg-slate-800 p-2 rounded text-white"
+                                  className="w-full bg-neutral-900 p-2 rounded text-white border border-neutral-800"
                                   onChange={(e) => {
                                       if(e.target.value) handleAddMember(e.target.value);
                                       e.target.value = ''; // 选中后重置
@@ -489,14 +489,14 @@ export default function AdminTeamsPage() {
                               // 确保使用正确的 ID（user_id 作为唯一标识）
                               const memberId = m.user_id || m.id
                               return (
-                                <div key={memberId} className={`bg-slate-700/50 p-3 rounded border ${m.is_captain ? 'border-yellow-500/50 bg-yellow-900/10' : 'border-slate-600'}`}>
+                                <div key={memberId} className={`bg-neutral-900/50 p-3 rounded border ${m.is_captain ? 'border-neutral-600 bg-neutral-800' : 'border-neutral-800'}`}>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <div className="w-10 h-10 rounded-full bg-slate-600 overflow-hidden border-2 border-slate-500 shrink-0">
+                                            <div className="w-10 h-10 rounded-full bg-neutral-800 overflow-hidden border-2 border-neutral-700 shrink-0">
                                                 {m.avatar_url ? (
                                                     <img src={m.avatar_url} className="w-full h-full object-cover" alt={m.username || '用户'} />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-300">
+                                                    <div className="w-full h-full flex items-center justify-center text-xs font-bold text-neutral-300">
                                                         {(m.username || '?')[0].toUpperCase()}
                                                     </div>
                                                 )}
@@ -505,12 +505,12 @@ export default function AdminTeamsPage() {
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-bold text-white truncate">{m.username || '未命名用户'}</span>
                                                     {m.is_captain && (
-                                                        <span className="px-2 py-0.5 bg-yellow-500 text-black text-[10px] font-black uppercase rounded shrink-0">
+                                                        <span className="px-2 py-0.5 bg-white text-black text-[10px] font-black uppercase rounded shrink-0">
                                                             队长
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="text-xs text-slate-400 truncate">
+                                                <div className="text-xs text-neutral-400 truncate">
                                                   ID: {memberId.substring(0, 8)}
                                                 </div>
                                             </div>
@@ -519,7 +519,7 @@ export default function AdminTeamsPage() {
                                             {!m.is_captain && (
                                                 <button 
                                                     onClick={() => handleSetCaptain(memberId)} 
-                                                    className="text-yellow-400 text-xs hover:text-yellow-300 hover:underline whitespace-nowrap"
+                                                    className="text-white text-xs hover:text-neutral-300 hover:underline whitespace-nowrap"
                                                     title="设为队长"
                                                 >
                                                     设队长
@@ -527,7 +527,7 @@ export default function AdminTeamsPage() {
                                             )}
                                             <button 
                                                 onClick={() => handleRemoveMember(m.membership_id, memberId)} 
-                                                className="text-red-400 text-xs hover:text-red-300 hover:underline whitespace-nowrap"
+                                                className="text-neutral-400 text-xs hover:text-neutral-300 hover:underline whitespace-nowrap"
                                             >
                                                 移除
                                             </button>
@@ -546,7 +546,7 @@ export default function AdminTeamsPage() {
                 )}
             </div>
         ) : (
-            <div className="h-full flex items-center justify-center text-slate-500">
+            <div className="h-full flex items-center justify-center text-neutral-500">
                 请在左侧选择一个战队进行管理
             </div>
         )}

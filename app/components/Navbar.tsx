@@ -32,13 +32,13 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 w-full bg-[#0a0a0a]/80 backdrop-blur-md border-b border-neutral-800">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         
-        {/* LOGO: DartsGo (极简风格) */}
+        {/* LOGO: SydArts (极简风格) */}
         <Link href="/" className="flex items-center gap-2 group">
           <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-black font-black text-sm group-hover:scale-105 transition-transform">
-            D
+            S
           </div>
           <span className="text-xl font-bold tracking-tight text-white">
-            DartsGo
+            SydArts
           </span>
         </Link>
 

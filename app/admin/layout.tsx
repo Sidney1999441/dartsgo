@@ -42,7 +42,7 @@ export default function AdminLayout({
   }, [router])
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">🔐 正在验证管理员身份...</div>
+    return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center text-neutral-400">🔐 正在验证管理员身份...</div>
   }
 
   // 菜单项配置
@@ -56,11 +56,11 @@ export default function AdminLayout({
   ]
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#0a0a0a] flex flex-col md:flex-row">
       {/* 后台侧边栏 */}
-      <aside className="w-full md:w-64 bg-slate-950 border-r border-slate-800 p-6 flex-shrink-0">
+      <aside className="w-full md:w-64 bg-neutral-950 border-r border-neutral-800 p-6 flex-shrink-0">
         <div className="mb-8 flex items-center gap-2">
-            <span className="bg-red-600 w-2 h-6 rounded-full"></span>
+            <span className="bg-white w-2 h-6 rounded-full"></span>
             <h2 className="text-xl font-bold text-white">管理后台</h2>
         </div>
         
@@ -73,8 +73,8 @@ export default function AdminLayout({
                 href={item.href} 
                 className={`block px-4 py-3 rounded-lg transition-colors ${
                     isActive 
-                    ? 'bg-blue-600 text-white font-bold' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    ? 'bg-white text-black font-bold' 
+                    : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
                 }`}
               >
                 {item.name}
@@ -82,8 +82,8 @@ export default function AdminLayout({
             )
           })}
           
-          <div className="pt-8 mt-8 border-t border-slate-800">
-            <Link href="/" className="flex items-center gap-2 text-slate-500 hover:text-slate-300 text-sm px-4">
+          <div className="pt-8 mt-8 border-t border-neutral-800">
+            <Link href="/" className="flex items-center gap-2 text-neutral-500 hover:text-neutral-300 text-sm px-4">
                 <span>←</span> 返回前台首页
             </Link>
           </div>
@@ -91,7 +91,7 @@ export default function AdminLayout({
       </aside>
 
       {/* 后台内容区 */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-slate-900">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[#0a0a0a]">
         {children}
       </main>
     </div>

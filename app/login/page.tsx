@@ -142,26 +142,26 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 w-full h-full bg-[url('/grid.svg')] opacity-[0.03]"></div>
       
       <div className="w-full max-w-md relative z-10">
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl">
+        <div className="bg-neutral-900/50 backdrop-blur-xl border border-neutral-800 p-8 rounded-2xl">
           
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">
               {isSignUp ? '创建新账号' : '欢迎回来'}
             </h1>
-            <p className="text-slate-400 text-sm">
-              {isSignUp ? '注册您的 Darts.Pro 选手账号' : '请登录您的 Darts.Pro 选手账号'}
+            <p className="text-neutral-400 text-sm">
+              {isSignUp ? '注册您的 SydArts 选手账号' : '请登录您的 SydArts 选手账号'}
             </p>
           </div>
 
           <div className="space-y-5">
             {isSignUp && (
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">用户名</label>
+                <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2">用户名</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-slate-950/50 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  className="w-full bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-white placeholder-neutral-600 focus:outline-none focus:border-white transition-all"
                   placeholder="请输入您的用户名（3-20 个字符）"
                   minLength={3}
                   maxLength={20}
@@ -170,29 +170,29 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Email</label>
+              <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950/50 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                className="w-full bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-white placeholder-neutral-600 focus:outline-none focus:border-white transition-all"
                 placeholder="player@darts.pro"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Password</label>
+              <label className="block text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950/50 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                className="w-full bg-neutral-950/50 border border-neutral-800 rounded-lg p-3 text-white placeholder-neutral-600 focus:outline-none focus:border-white transition-all"
                 placeholder="••••••••"
               />
             </div>
 
             {message && (
-              <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${message.includes('失败') ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+              <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${message.includes('失败') ? 'bg-neutral-900/50 text-neutral-300 border border-neutral-800' : 'bg-neutral-900/50 text-white border border-neutral-800'}`}>
                 {message.includes('失败') ? '⚠️' : '✅'} {message}
               </div>
             )}
@@ -202,20 +202,20 @@ export default function LoginPage() {
                 <button
                   onClick={handleLogin}
                   disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-blue-900/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                  className="w-full bg-white hover:bg-neutral-200 text-black font-bold py-3.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? '处理中...' : '立即登录'}
                 </button>
 
                 <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-700"></div></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900 px-2 text-slate-500">Or</span></div>
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-neutral-800"></div></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0a0a0a] px-2 text-neutral-500">Or</span></div>
                 </div>
 
                 <button
                   onClick={() => setIsSignUp(true)}
                   disabled={loading}
-                  className="w-full bg-transparent hover:bg-white/5 border border-slate-600 text-slate-300 font-medium py-3 rounded-lg transition-colors"
+                  className="w-full bg-transparent hover:bg-neutral-900 border border-neutral-800 text-neutral-300 font-medium py-3 rounded-lg transition-colors hover:border-neutral-700 hover:text-white"
                 >
                   注册新账号
                 </button>
@@ -225,14 +225,14 @@ export default function LoginPage() {
                 <button
                   onClick={handleSignUp}
                   disabled={loading || !username.trim()}
-                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-blue-900/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                  className="w-full bg-white hover:bg-neutral-200 text-black font-bold py-3.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? '注册中...' : '完成注册'}
                 </button>
 
                 <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-700"></div></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-900 px-2 text-slate-500">Or</span></div>
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-neutral-800"></div></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-[#0a0a0a] px-2 text-neutral-500">Or</span></div>
                 </div>
 
                 <button
@@ -242,7 +242,7 @@ export default function LoginPage() {
                     setMessage('')
                   }}
                   disabled={loading}
-                  className="w-full bg-transparent hover:bg-white/5 border border-slate-600 text-slate-300 font-medium py-3 rounded-lg transition-colors"
+                  className="w-full bg-transparent hover:bg-neutral-900 border border-neutral-800 text-neutral-300 font-medium py-3 rounded-lg transition-colors hover:border-neutral-700 hover:text-white"
                 >
                   返回登录
                 </button>

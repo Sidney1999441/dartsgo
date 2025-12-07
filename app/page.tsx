@@ -12,7 +12,7 @@ export default function Home() {
         </div>
         
         <h1 className="text-6xl md:text-8xl font-bold tracking-tighter text-white mb-6">
-          DartsGo
+          SydArts
         </h1>
         <p className="text-lg md:text-xl text-neutral-500 max-w-xl mx-auto leading-relaxed">
           纯粹的飞镖赛事管理系统<br/>
@@ -56,7 +56,7 @@ export default function Home() {
       </div>
 
       <footer className="mt-20 border-t border-neutral-900 w-full py-8 text-center text-xs text-neutral-600">
-        <p>© 2025 DartsGo System. Designed for Sidney.</p>
+        <p>© 2025 SydArts System. Designed for Sidney.</p>
       </footer>
     </main>
   );

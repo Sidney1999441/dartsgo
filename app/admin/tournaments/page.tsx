@@ -180,7 +180,7 @@ export default function AdminTournamentsPage() {
       {/* 标题区 */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight text-white">新赛事</h1>
-        <div className="text-xs text-neutral-500 uppercase tracking-widest border border-neutral-800 px-2 py-1 rounded">DartsGo Admin</div>
+        <div className="text-xs text-neutral-500 uppercase tracking-widest border border-neutral-800 px-2 py-1 rounded">SydArts Admin</div>
       </div>
 
       {/* 1. 基本信息 */}

@@ -214,40 +214,98 @@ export default function DashboardPage() {
 
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-neutral-500">正在加载数据...</div>
 
-  // === UI 组件: 段位铭牌 (汉化版) ===
+  // === UI 组件: 段位铭牌 (美化彩色版) ===
   const LevelBadge = ({ level, tier }: { level: number, tier: string }) => {
-    let colorClass = "from-neutral-700 to-neutral-900 border-neutral-700 text-neutral-400"
+    // 根据段位设置不同的颜色方案
+    let borderClass = "border-neutral-700"
+    let bgGradient = "from-neutral-800 to-neutral-950"
+    let textClass = "text-neutral-400"
     let glowClass = "bg-neutral-500/10"
+    let accentColor = "neutral"
     
-    if (['S', 'SS', 'SSS'].includes(tier)) {
-        colorClass = "from-yellow-900/80 to-neutral-900 border-yellow-600/50 text-yellow-500"
+    if (tier === 'SSS') {
+        borderClass = "border-yellow-500/60"
+        bgGradient = "from-yellow-600/20 via-yellow-500/10 to-neutral-950"
+        textClass = "text-yellow-400"
         glowClass = "bg-yellow-500/20"
-    } else if (['A', 'AA'].includes(tier)) {
-        colorClass = "from-blue-900/80 to-neutral-900 border-blue-500/50 text-blue-400"
+        accentColor = "yellow"
+    } else if (tier === 'SS') {
+        borderClass = "border-yellow-400/50"
+        bgGradient = "from-yellow-500/15 via-yellow-400/8 to-neutral-950"
+        textClass = "text-yellow-300"
+        glowClass = "bg-yellow-400/15"
+        accentColor = "yellow"
+    } else if (tier === 'S') {
+        borderClass = "border-yellow-300/40"
+        bgGradient = "from-yellow-400/10 via-yellow-300/5 to-neutral-950"
+        textClass = "text-yellow-200"
+        glowClass = "bg-yellow-300/10"
+        accentColor = "yellow"
+    } else if (tier === 'AA') {
+        borderClass = "border-blue-500/60"
+        bgGradient = "from-blue-600/20 via-blue-500/10 to-neutral-950"
+        textClass = "text-blue-400"
         glowClass = "bg-blue-500/20"
-    } else if (['B', 'BB'].includes(tier)) {
-        colorClass = "from-orange-900/80 to-neutral-900 border-orange-600/50 text-orange-400"
-        glowClass = "bg-orange-500/20"
+        accentColor = "blue"
+    } else if (tier === 'A') {
+        borderClass = "border-blue-400/50"
+        bgGradient = "from-blue-500/15 via-blue-400/8 to-neutral-950"
+        textClass = "text-blue-300"
+        glowClass = "bg-blue-400/15"
+        accentColor = "blue"
+    } else if (tier === 'BB') {
+        borderClass = "border-purple-500/60"
+        bgGradient = "from-purple-600/20 via-purple-500/10 to-neutral-950"
+        textClass = "text-purple-400"
+        glowClass = "bg-purple-500/20"
+        accentColor = "purple"
+    } else if (tier === 'B') {
+        borderClass = "border-purple-400/50"
+        bgGradient = "from-purple-500/15 via-purple-400/8 to-neutral-950"
+        textClass = "text-purple-300"
+        glowClass = "bg-purple-400/15"
+        accentColor = "purple"
+    } else if (tier === 'CB') {
+        borderClass = "border-emerald-500/60"
+        bgGradient = "from-emerald-600/20 via-emerald-500/10 to-neutral-950"
+        textClass = "text-emerald-400"
+        glowClass = "bg-emerald-500/20"
+        accentColor = "emerald"
+    } else if (tier === 'C') {
+        borderClass = "border-neutral-600"
+        bgGradient = "from-neutral-800 to-neutral-950"
+        textClass = "text-neutral-400"
+        glowClass = "bg-neutral-500/10"
+        accentColor = "neutral"
     }
 
     return (
-        <div className={`relative w-28 h-32 rounded-xl border ${colorClass.split(' ')[2]} bg-gradient-to-b ${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]} flex flex-col items-center justify-center shadow-2xl overflow-hidden group`}>
-             <div className={`absolute top-0 inset-x-0 h-1/2 ${glowClass} blur-xl`}></div>
+        <div className={`relative w-28 h-32 rounded-xl border-2 ${borderClass} bg-gradient-to-b ${bgGradient} flex flex-col items-center justify-center overflow-hidden group shadow-lg shadow-black/50 hover:shadow-xl hover:shadow-black/70 transition-all duration-300`}>
+             {/* 发光效果 */}
+             <div className={`absolute top-0 inset-x-0 h-1/2 ${glowClass} blur-xl opacity-50 group-hover:opacity-75 transition-opacity`}></div>
+             
+             {/* 装饰性边框高光 */}
+             <div className={`absolute inset-0 rounded-xl border ${borderClass} opacity-50 group-hover:opacity-100 transition-opacity`}></div>
              
              {/* 上半部分：Tier (段位) */}
-             <div className="flex-1 flex flex-col items-center justify-center z-10 pt-2">
-                 <div className="text-[10px] font-bold tracking-[0.2em] opacity-60 uppercase">段位</div>
-                 <div className={`text-5xl font-black italic tracking-tighter ${colorClass.split(' ')[3]} drop-shadow-lg scale-110 group-hover:scale-125 transition-transform duration-500`}>
+             <div className="flex-1 flex flex-col items-center justify-center z-10 pt-2 relative">
+                 <div className={`text-[10px] font-bold tracking-[0.2em] uppercase ${textClass} opacity-70 group-hover:opacity-100 transition-opacity`}>段位</div>
+                 <div className={`text-5xl font-black italic tracking-tighter ${textClass} drop-shadow-lg scale-110 group-hover:scale-125 transition-transform duration-500`}>
                      {tier}
                  </div>
+                 {/* 段位文字的光晕效果 */}
+                 <div className={`absolute inset-0 ${glowClass} blur-2xl opacity-30 group-hover:opacity-50 transition-opacity`}></div>
              </div>
              
              {/* 下半部分：Level (等级) */}
-             <div className="w-full bg-black/40 backdrop-blur-sm py-1.5 text-center border-t border-white/5 z-10">
+             <div className={`w-full bg-black/60 backdrop-blur-sm py-1.5 text-center border-t ${borderClass} border-opacity-30 z-10`}>
                  <div className="text-xs font-mono font-bold text-white tracking-widest">
                      LV.<span className="text-lg">{level}</span>
                  </div>
              </div>
+             
+             {/* 底部装饰线 */}
+             <div className={`absolute bottom-0 left-0 right-0 h-0.5 ${borderClass} opacity-50`}></div>
         </div>
     )
   }
@@ -273,7 +331,7 @@ export default function DashboardPage() {
     return (
         <Link href={`/teams/${team.id}`} className="block group">
             <div className="relative overflow-hidden bg-neutral-900 border border-neutral-800 rounded-lg p-3 flex items-center justify-between hover:border-neutral-600 transition-all duration-300 hover:shadow-lg hover:shadow-blue-900/10">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-white"></div>
                 
                 <div className="flex items-center gap-4 pl-2">
                     <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 overflow-hidden shrink-0">
@@ -281,7 +339,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                         <div className="text-xs text-neutral-500 font-bold uppercase tracking-wider mb-0.5">我的战队</div>
-                        <div className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">{team.name}</div>
+                        <div className="text-sm font-bold text-white group-hover:text-neutral-300 transition-colors">{team.name}</div>
                     </div>
                 </div>
 
@@ -366,8 +424,8 @@ export default function DashboardPage() {
             </div>
             <div className="grid grid-cols-3 gap-3 md:gap-4">
                 <StatBox label="硬镖 PPD" value={profile?.ppd_steel} color="text-white" sub="分数/镖" />
-                <StatBox label="软镖 PPD" value={profile?.ppd_soft} color="text-blue-400" sub="分数/镖" />
-                <StatBox label="软镖 MPR" value={profile?.mpr_avg} color="text-green-400" sub="马克/轮" />
+                <StatBox label="软镖 PPD" value={profile?.ppd_soft} color="text-white" sub="分数/镖" />
+                <StatBox label="软镖 MPR" value={profile?.mpr_avg} color="text-white" sub="马克/轮" />
             </div>
         </div>
 
@@ -378,7 +436,7 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-2 gap-3">
                     <StatBox label="180 次数" value={profile?.total_180s} />
                     <StatBox label="140+ 次数" value={profile?.total_140s} />
-                    <StatBox label="最高结镖" value={profile?.high_finish_steel} color="text-yellow-500"/>
+                    <StatBox label="最高结镖" value={profile?.high_finish_steel} color="text-white"/>
                     <StatBox label="结镖率" value={`${profile?.checkout_rate || 0}%`} />
                 </div>
             </div>
@@ -406,7 +464,7 @@ export default function DashboardPage() {
                                      {t.format === 'league' ? '循环赛' : t.format === 'knockout' ? '淘汰赛' : '双循环'}
                                  </div>
                              </div>
-                             <div className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${t.status === 'ongoing' ? 'text-green-400 border-green-900 bg-green-900/10' : 'text-neutral-500 border-neutral-800'}`}>
+                             <div className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${t.status === 'ongoing' ? 'text-white border-neutral-700 bg-neutral-900' : 'text-neutral-500 border-neutral-800'}`}>
                                  {t.status === 'ongoing' ? '进行中' : t.status === 'completed' ? '已结束' : '未开始'}
                              </div>
                          </div>
@@ -422,7 +480,7 @@ export default function DashboardPage() {
 
         {/* 底部操作 */}
         <div className="text-center pt-8 border-t border-neutral-900">
-            <button onClick={async()=>{await supabase.auth.signOut();router.push('/login')}} className="text-neutral-500 hover:text-red-400 text-xs font-bold uppercase tracking-widest transition-colors">
+            <button onClick={async()=>{await supabase.auth.signOut();router.push('/login')}} className="text-neutral-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
                 退出登录
             </button>
         </div>
