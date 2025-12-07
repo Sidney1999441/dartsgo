@@ -18,15 +18,6 @@ export default function Home() {
           纯粹的飞镖赛事管理系统<br/>
           千里之行，始于足下
         </p>
-        
-        <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/schedule" className="btn-primary min-w-[160px] text-center">
-            浏览赛程
-          </Link>
-          <Link href="/rankings" className="btn-secondary min-w-[160px] text-center">
-            查看榜单
-          </Link>
-        </div>
       </div>
 
       {/* Grid Menu */}

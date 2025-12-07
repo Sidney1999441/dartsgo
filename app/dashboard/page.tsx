@@ -12,10 +12,17 @@ export default function DashboardPage() {
   const [myTeam, setMyTeam] = useState<any>(null)
   const [myTournaments, setMyTournaments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isCaptain, setIsCaptain] = useState(false)
   
   // 编辑弹窗状态
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editForm, setEditForm] = useState({ username: '', avatar_url: '' })
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  
+  // 战队管理弹窗状态
+  const [isTeamEditOpen, setIsTeamEditOpen] = useState(false)
+  const [teamForm, setTeamForm] = useState({ name: '', logo_url: '' })
+  const [uploadingTeamLogo, setUploadingTeamLogo] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -28,7 +35,16 @@ export default function DashboardPage() {
       setEditForm({ username: p?.username || '', avatar_url: p?.avatar_url || '' })
 
       const { data: m } = await supabase.from('team_members').select('team_id, teams(*)').eq('user_id', user.id).single()
-      if (m?.teams) setMyTeam(m.teams)
+      if (m?.teams) {
+        // 处理 teams 可能是数组或对象的情况
+        const team = Array.isArray(m.teams) ? m.teams[0] : m.teams
+        if (team) {
+          setMyTeam(team)
+          // 检查是否是队长
+          setIsCaptain(team.captain_id === user.id)
+          setTeamForm({ name: team.name || '', logo_url: team.logo_url || '' })
+        }
+      }
 
       const { data: matches } = await supabase
         .from('matches')
@@ -50,18 +66,149 @@ export default function DashboardPage() {
     init()
   }, [router])
 
+  // 上传头像到 Supabase Storage
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !user) return
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件')
+      return
+    }
+
+    // 验证文件大小（限制为 5MB）
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过 5MB')
+      return
+    }
+
+    setUploadingAvatar(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      // 上传文件到 Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) {
+        throw uploadError
+      }
+
+      // 获取公共 URL
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+
+      // 更新头像 URL
+      setEditForm({ ...editForm, avatar_url: data.publicUrl })
+      alert('头像上传成功！请点击保存按钮保存更改。')
+    } catch (error: any) {
+      console.error('上传失败:', error)
+      alert('上传失败: ' + (error.message || '未知错误'))
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const handleSaveProfile = async () => {
     if (!user) return
+    
+    const trimmedUsername = editForm.username.trim()
+    
+    // 验证用户名长度
+    if (trimmedUsername && trimmedUsername.length < 3) {
+      alert('用户名至少需要 3 个字符')
+      return
+    }
+    
+    if (trimmedUsername && trimmedUsername.length > 20) {
+      alert('用户名不能超过 20 个字符')
+      return
+    }
+    
     const { error } = await supabase.from('profiles').update({
-        username: editForm.username,
+        username: trimmedUsername || null,
         avatar_url: editForm.avatar_url
     }).eq('id', user.id)
 
-    if (error) alert('保存失败: ' + error.message)
-    else {
+    if (error) {
+      if (error.message.includes('username_length')) {
+        alert('用户名长度不符合要求（3-20 个字符）')
+      } else {
+        alert('保存失败: ' + error.message)
+      }
+    } else {
         alert('个人资料已更新')
         setIsEditOpen(false)
-        setProfile({ ...profile, ...editForm })
+        setProfile({ ...profile, ...editForm, username: trimmedUsername })
+    }
+  }
+
+  // 上传战队 LOGO 到 Supabase Storage
+  const handleTeamLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !myTeam) return
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件')
+      return
+    }
+
+    // 验证文件大小（限制为 5MB）
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过 5MB')
+      return
+    }
+
+    setUploadingTeamLogo(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `team-${myTeam.id}-${Date.now()}.${fileExt}`
+      const filePath = `team-logos/${fileName}`
+
+      // 上传文件到 Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('team-logos')
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) {
+        throw uploadError
+      }
+
+      // 获取公共 URL
+      const { data } = supabase.storage
+        .from('team-logos')
+        .getPublicUrl(filePath)
+
+      // 更新战队 LOGO URL
+      setTeamForm({ ...teamForm, logo_url: data.publicUrl })
+      alert('战队 LOGO 上传成功！请点击保存按钮保存更改。')
+    } catch (error: any) {
+      console.error('上传失败:', error)
+      alert('上传失败: ' + (error.message || '未知错误'))
+    } finally {
+      setUploadingTeamLogo(false)
+    }
+  }
+
+  // 保存战队信息
+  const handleSaveTeam = async () => {
+    if (!myTeam || !isCaptain) return
+    const { error } = await supabase.from('teams').update({
+        name: teamForm.name,
+        logo_url: teamForm.logo_url
+    }).eq('id', myTeam.id)
+
+    if (error) alert('保存失败: ' + error.message)
+    else {
+        alert('战队信息已更新')
+        setIsTeamEditOpen(false)
+        setMyTeam({ ...myTeam, ...teamForm })
     }
   }
 
@@ -191,8 +338,16 @@ export default function DashboardPage() {
                     </div>
 
                     {/* 战队通行证 */}
-                    <div className="w-full md:w-auto md:min-w-[240px]">
+                    <div className="w-full md:w-auto md:min-w-[240px] space-y-2">
                         <TeamPass team={myTeam} />
+                        {isCaptain && myTeam && (
+                            <button 
+                                onClick={() => setIsTeamEditOpen(true)}
+                                className="w-full px-4 py-2 bg-neutral-900 border border-neutral-800 text-white text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-neutral-800 hover:border-neutral-700 transition-colors"
+                            >
+                                ⚙️ 管理战队
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -286,22 +441,99 @@ export default function DashboardPage() {
                             value={editForm.username} 
                             onChange={e => setEditForm({...editForm, username: e.target.value})}
                             className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg mt-1 focus:border-white outline-none transition-colors"
-                            placeholder="请输入新的昵称"
+                            placeholder="请输入新的昵称（3-20 个字符）"
+                            minLength={3}
+                            maxLength={20}
                         />
+                        <p className="text-xs text-neutral-600 mt-1">用户名长度：3-20 个字符</p>
                     </div>
                     <div>
-                        <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">头像链接</label>
-                        <input 
-                            value={editForm.avatar_url} 
-                            onChange={e => setEditForm({...editForm, avatar_url: e.target.value})}
-                            className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg mt-1 focus:border-white outline-none font-mono text-xs transition-colors"
-                            placeholder="https://example.com/image.jpg"
-                        />
+                        <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-2 block">头像</label>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg cursor-pointer hover:bg-neutral-800 hover:border-neutral-600 transition-colors text-center">
+                                    {uploadingAvatar ? '上传中...' : '📤 选择图片上传'}
+                                    <input 
+                                        type="file" 
+                                        accept="image/*"
+                                        onChange={handleAvatarUpload}
+                                        className="hidden"
+                                        disabled={uploadingAvatar}
+                                    />
+                                </label>
+                            </div>
+                            <div className="text-xs text-neutral-500 text-center">或</div>
+                            <input 
+                                value={editForm.avatar_url} 
+                                onChange={e => setEditForm({...editForm, avatar_url: e.target.value})}
+                                className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg focus:border-white outline-none font-mono text-xs transition-colors"
+                                placeholder="https://example.com/image.jpg"
+                            />
+                            {editForm.avatar_url && (
+                                <div className="mt-2 flex justify-center">
+                                    <img src={editForm.avatar_url} alt="预览" className="w-20 h-20 rounded-full object-cover border border-neutral-700" />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-8">
                     <button onClick={() => setIsEditOpen(false)} className="bg-neutral-900 text-neutral-400 font-bold py-3 rounded-lg hover:bg-neutral-800 transition-colors">取消</button>
                     <button onClick={handleSaveProfile} className="bg-white text-black font-bold py-3 rounded-lg hover:bg-neutral-200 transition-colors">保存修改</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* === 战队管理弹窗 === */}
+      {isTeamEditOpen && myTeam && isCaptain && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-[#0f0f0f] border border-neutral-800 w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+                <button onClick={() => setIsTeamEditOpen(false)} className="absolute top-4 right-4 text-neutral-500 hover:text-white">✕</button>
+                <h3 className="text-xl font-black text-white mb-6">管理战队</h3>
+                <div className="space-y-5">
+                    <div>
+                        <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">战队名称</label>
+                        <input 
+                            value={teamForm.name} 
+                            onChange={e => setTeamForm({...teamForm, name: e.target.value})}
+                            className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg mt-1 focus:border-white outline-none transition-colors"
+                            placeholder="请输入战队名称"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-2 block">战队 LOGO</label>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg cursor-pointer hover:bg-neutral-800 hover:border-neutral-600 transition-colors text-center">
+                                    {uploadingTeamLogo ? '上传中...' : '📤 选择图片上传'}
+                                    <input 
+                                        type="file" 
+                                        accept="image/*"
+                                        onChange={handleTeamLogoUpload}
+                                        className="hidden"
+                                        disabled={uploadingTeamLogo}
+                                    />
+                                </label>
+                            </div>
+                            <div className="text-xs text-neutral-500 text-center">或</div>
+                            <input 
+                                value={teamForm.logo_url} 
+                                onChange={e => setTeamForm({...teamForm, logo_url: e.target.value})}
+                                className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg focus:border-white outline-none font-mono text-xs transition-colors"
+                                placeholder="https://example.com/image.jpg"
+                            />
+                            {teamForm.logo_url && (
+                                <div className="mt-2 flex justify-center">
+                                    <img src={teamForm.logo_url} alt="预览" className="w-20 h-20 rounded-full object-cover border border-neutral-700" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-8">
+                    <button onClick={() => setIsTeamEditOpen(false)} className="bg-neutral-900 text-neutral-400 font-bold py-3 rounded-lg hover:bg-neutral-800 transition-colors">取消</button>
+                    <button onClick={handleSaveTeam} className="bg-white text-black font-bold py-3 rounded-lg hover:bg-neutral-200 transition-colors">保存修改</button>
                 </div>
             </div>
         </div>

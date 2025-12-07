@@ -49,8 +49,9 @@ export default function AdminLayout({
   const menuItems = [
     { name: '📅 赛事录入', href: '/admin/schedule' },
     { name: '⚡️ 新建赛程', href: '/admin/tournaments' },
-    { name: '🛡️ 战队管理', href: '/admin/teams' }, // 这里加了新入口
+    { name: '🛡️ 战队管理', href: '/admin/teams' },
     { name: '👥 选手管理', href: '/admin/players' },
+    { name: '👤 用户管理', href: '/admin/users' },
     { name: '🎲 随机组队', href: '/admin/team-generator' },
   ]
 
