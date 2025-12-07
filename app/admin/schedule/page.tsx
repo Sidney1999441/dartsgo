@@ -27,10 +27,27 @@ export default function AdminSchedulePage() {
 
   const fetchMatches = async (tournamentId: string) => {
     setLoading(true)
-    const { data } = await supabase.from('matches')
-      .select(`*, home_team:teams!home_team_id(name), away_team:teams!away_team_id(name)`)
-      .eq('tournament_id', tournamentId).order('start_time', { ascending: true })
-    if (data) setMatches(data)
+    const { data: tournament } = await supabase.from('tournaments')
+      .select('tournament_type')
+      .eq('id', tournamentId)
+      .single()
+    
+    // 如果 tournament_type 字段不存在，默认为团队赛
+    const isIndividual = tournament?.tournament_type === 'individual'
+    
+    if (isIndividual) {
+      // 个人赛：查询选手信息
+      const { data } = await supabase.from('matches')
+        .select(`*, home_player:profiles!home_player_id(id, username, avatar_url), away_player:profiles!away_player_id(id, username, avatar_url)`)
+        .eq('tournament_id', tournamentId).order('start_time', { ascending: true })
+      if (data) setMatches(data)
+    } else {
+      // 团队赛：查询队伍信息
+      const { data } = await supabase.from('matches')
+        .select(`*, home_team:teams!home_team_id(name), away_team:teams!away_team_id(name)`)
+        .eq('tournament_id', tournamentId).order('start_time', { ascending: true })
+      if (data) setMatches(data)
+    }
     setLoading(false)
   }
 
@@ -124,7 +141,7 @@ export default function AdminSchedulePage() {
                 {/* 对阵 */}
                 <div className="flex-1 grid grid-cols-3 items-center w-full gap-2">
                   <div className={`text-right font-bold truncate ${match.home_score > match.away_score ? 'text-yellow-400' : 'text-slate-300'}`}>
-                    {match.home_team?.name}
+                    {match.home_team?.name || match.home_player?.username || `用户_${match.home_player_id?.substring(0, 8)}`}
                   </div>
                   <div className="text-center">
                     {match.is_finished ? (
@@ -136,7 +153,7 @@ export default function AdminSchedulePage() {
                     )}
                   </div>
                   <div className={`text-left font-bold truncate ${match.away_score > match.home_score ? 'text-yellow-400' : 'text-slate-300'}`}>
-                    {match.away_team?.name}
+                    {match.away_team?.name || match.away_player?.username || `用户_${match.away_player_id?.substring(0, 8)}`}
                   </div>
                 </div>
 

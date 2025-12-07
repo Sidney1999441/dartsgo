@@ -19,7 +19,7 @@ export default function MatchDetailPage() {
       // 1. 获取比赛基础信息 (包括 match_type)
       const { data: matchData } = await supabase
         .from('matches')
-        .select(`*, tournament:tournaments(name), home_team:teams!home_team_id(*), away_team:teams!away_team_id(*)`)
+        .select(`*, tournament:tournaments(name, tournament_type), home_team:teams!home_team_id(*), away_team:teams!away_team_id(*), home_player:profiles!home_player_id(id, username, avatar_url), away_player:profiles!away_player_id(id, username, avatar_url)`)
         .eq('id', matchId)
         .single()
       setMatch(matchData)
@@ -42,9 +42,15 @@ export default function MatchDetailPage() {
 
   // 判断是否是软镖模式
   const isSoft = match.match_type === 'soft'
+  const isIndividual = match.tournament?.tournament_type === 'individual' || match.home_player_id
 
-  const getTeamStats = (teamId: number) => {
-    return stats.filter(s => s.team_id === teamId)
+  const getTeamStats = (teamId: number | null, playerId: string | null) => {
+    if (isIndividual && playerId) {
+      return stats.filter(s => s.player_id === playerId)
+    } else if (teamId) {
+      return stats.filter(s => s.team_id === teamId)
+    }
+    return []
   }
 
   return (
@@ -68,12 +74,26 @@ export default function MatchDetailPage() {
 
             <div className="flex justify-between items-center px-4 md:px-12">
                 <div className="flex flex-col items-center gap-4 w-1/3">
-                    {match.home_team?.logo_url ? (
-                        <img src={match.home_team.logo_url} className="w-20 h-20 rounded-full border-4 border-slate-700 shadow-lg" />
+                    {isIndividual ? (
+                        match.home_player?.avatar_url ? (
+                            <img src={match.home_player.avatar_url} className="w-20 h-20 rounded-full border-4 border-slate-700 shadow-lg" />
+                        ) : (
+                            <div className="w-20 h-20 rounded-full bg-blue-900 border-4 border-slate-700 flex items-center justify-center text-2xl font-bold">
+                                {match.home_player?.username?.[0] || 'A'}
+                            </div>
+                        )
                     ) : (
-                        <div className="w-20 h-20 rounded-full bg-blue-900 border-4 border-slate-700 flex items-center justify-center text-2xl font-bold">A</div>
+                        match.home_team?.logo_url ? (
+                            <img src={match.home_team.logo_url} className="w-20 h-20 rounded-full border-4 border-slate-700 shadow-lg" />
+                        ) : (
+                            <div className="w-20 h-20 rounded-full bg-blue-900 border-4 border-slate-700 flex items-center justify-center text-2xl font-bold">A</div>
+                        )
                     )}
-                    <div className="text-xl font-bold text-center">{match.home_team?.name}</div>
+                    <div className="text-xl font-bold text-center">
+                        {isIndividual 
+                          ? (match.home_player?.username || `用户_${match.home_player_id?.substring(0, 8)}`)
+                          : match.home_team?.name}
+                    </div>
                 </div>
 
                 <div className="text-center relative z-10">
@@ -85,20 +105,50 @@ export default function MatchDetailPage() {
                 </div>
 
                 <div className="flex flex-col items-center gap-4 w-1/3">
-                    {match.away_team?.logo_url ? (
-                        <img src={match.away_team.logo_url} className="w-20 h-20 rounded-full border-4 border-slate-700 shadow-lg" />
+                    {isIndividual ? (
+                        match.away_player?.avatar_url ? (
+                            <img src={match.away_player.avatar_url} className="w-20 h-20 rounded-full border-4 border-slate-700 shadow-lg" />
+                        ) : (
+                            <div className="w-20 h-20 rounded-full bg-red-900 border-4 border-slate-700 flex items-center justify-center text-2xl font-bold">
+                                {match.away_player?.username?.[0] || 'B'}
+                            </div>
+                        )
                     ) : (
-                        <div className="w-20 h-20 rounded-full bg-red-900 border-4 border-slate-700 flex items-center justify-center text-2xl font-bold">B</div>
+                        match.away_team?.logo_url ? (
+                            <img src={match.away_team.logo_url} className="w-20 h-20 rounded-full border-4 border-slate-700 shadow-lg" />
+                        ) : (
+                            <div className="w-20 h-20 rounded-full bg-red-900 border-4 border-slate-700 flex items-center justify-center text-2xl font-bold">B</div>
+                        )
                     )}
-                    <div className="text-xl font-bold text-center">{match.away_team?.name}</div>
+                    <div className="text-xl font-bold text-center">
+                        {isIndividual 
+                          ? (match.away_player?.username || `用户_${match.away_player_id?.substring(0, 8)}`)
+                          : match.away_team?.name}
+                    </div>
                 </div>
             </div>
         </div>
 
         {/* 详细数据统计展示 */}
         <div className="grid md:grid-cols-2 gap-6">
-            <StatsCard title={match.home_team?.name} color="border-blue-500/30 bg-blue-900/10" titleColor="text-blue-400" data={getTeamStats(match.home_team_id)} isSoft={isSoft} />
-            <StatsCard title={match.away_team?.name} color="border-red-500/30 bg-red-900/10" titleColor="text-red-400" data={getTeamStats(match.away_team_id)} isSoft={isSoft} />
+            <StatsCard 
+              title={isIndividual 
+                ? (match.home_player?.username || `用户_${match.home_player_id?.substring(0, 8)}`)
+                : match.home_team?.name} 
+              color="border-blue-500/30 bg-blue-900/10" 
+              titleColor="text-blue-400" 
+              data={getTeamStats(match.home_team_id, match.home_player_id)} 
+              isSoft={isSoft} 
+            />
+            <StatsCard 
+              title={isIndividual 
+                ? (match.away_player?.username || `用户_${match.away_player_id?.substring(0, 8)}`)
+                : match.away_team?.name} 
+              color="border-red-500/30 bg-red-900/10" 
+              titleColor="text-red-400" 
+              data={getTeamStats(match.away_team_id, match.away_player_id)} 
+              isSoft={isSoft} 
+            />
         </div>
       </div>
     </div>

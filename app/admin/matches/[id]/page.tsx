@@ -29,9 +29,10 @@ export default function AdminMatchEditPage() {
   useEffect(() => {
     if (!matchId) return
     const initData = async () => {
+      // 先获取比赛信息，判断是团队赛还是个人赛
       const { data: matchData } = await supabase
         .from('matches')
-        .select(`*, home_team:teams!home_team_id(*), away_team:teams!away_team_id(*)`)
+        .select(`*, home_team:teams!home_team_id(*), away_team:teams!away_team_id(*), home_player:profiles!home_player_id(id, username, avatar_url), away_player:profiles!away_player_id(id, username, avatar_url), tournaments(tournament_type)`)
         .eq('id', matchId)
         .single()
       
@@ -41,7 +42,7 @@ export default function AdminMatchEditPage() {
         setAwayScore(matchData.away_score || 0)
         setIsFinished(matchData.is_finished || false)
         setCurrentMatchType(matchData.match_type || 'steel')
-        setRoundName(matchData.round_name || '') // 初始化轮次名
+        setRoundName(matchData.round_name || '')
 
         // 初始化时间 (转为 input datetime-local 格式)
         if (matchData.start_time) {
@@ -50,14 +51,24 @@ export default function AdminMatchEditPage() {
             setStartTime(localIso)
         }
 
-        const { data: members } = await supabase
-          .from('team_members')
-          .select('team_id, profiles(id, username)')
-          .in('team_id', [matchData.home_team_id, matchData.away_team_id])
-        
-        if (members) {
-            setHomePlayers(members.filter((m: any) => m.team_id === matchData.home_team_id).map((m: any) => m.profiles))
-            setAwayPlayers(members.filter((m: any) => m.team_id === matchData.away_team_id).map((m: any) => m.profiles))
+        // 判断是团队赛还是个人赛
+        const isIndividual = matchData.tournaments?.tournament_type === 'individual' || matchData.home_player_id
+
+        if (isIndividual) {
+          // 个人赛：直接使用选手信息
+          if (matchData.home_player) setHomePlayers([matchData.home_player])
+          if (matchData.away_player) setAwayPlayers([matchData.away_player])
+        } else {
+          // 团队赛：获取队伍成员
+          const { data: members } = await supabase
+            .from('team_members')
+            .select('team_id, profiles(id, username)')
+            .in('team_id', [matchData.home_team_id, matchData.away_team_id])
+          
+          if (members) {
+              setHomePlayers(members.filter((m: any) => m.team_id === matchData.home_team_id).map((m: any) => m.profiles))
+              setAwayPlayers(members.filter((m: any) => m.team_id === matchData.away_team_id).map((m: any) => m.profiles))
+          }
         }
 
         const { data: savedStats } = await supabase.from('match_stats').select('*').eq('match_id', matchId)
@@ -159,14 +170,18 @@ export default function AdminMatchEditPage() {
         {/* 2. 大比分 */}
         <div className="bg-slate-800 p-6 rounded-lg mb-6 flex items-center justify-center gap-4 border border-slate-700">
             <div className="text-right">
-                <div className="font-bold text-lg">{match.home_team?.name}</div>
+                <div className="font-bold text-lg">
+                  {match.home_team?.name || match.home_player?.username || `用户_${match.home_player_id?.substring(0, 8)}`}
+                </div>
                 <div className="text-xs text-slate-500">Home</div>
             </div>
             <input type="number" value={homeScore} onChange={e => setHomeScore(Number(e.target.value))} className="bg-slate-900 w-20 h-16 text-3xl text-center rounded border border-slate-700 font-bold" />
             <span className="text-2xl text-slate-500">:</span>
             <input type="number" value={awayScore} onChange={e => setAwayScore(Number(e.target.value))} className="bg-slate-900 w-20 h-16 text-3xl text-center rounded border border-slate-700 font-bold" />
             <div className="text-left">
-                <div className="font-bold text-lg">{match.away_team?.name}</div>
+                <div className="font-bold text-lg">
+                  {match.away_team?.name || match.away_player?.username || `用户_${match.away_player_id?.substring(0, 8)}`}
+                </div>
                 <div className="text-xs text-slate-500">Away</div>
             </div>
             <label className="ml-8 flex items-center gap-2 cursor-pointer bg-slate-900 px-3 py-1 rounded border border-slate-600">
@@ -178,8 +193,16 @@ export default function AdminMatchEditPage() {
         {/* 3. 详细数据表格 */}
         <div className="bg-slate-800 p-6 rounded-lg space-y-8 border border-slate-700">
             {[
-                { name: match.home_team?.name, players: homePlayers, color: 'text-blue-400' },
-                { name: match.away_team?.name, players: awayPlayers, color: 'text-red-400' }
+                { 
+                  name: match.home_team?.name || match.home_player?.username || `用户_${match.home_player_id?.substring(0, 8)}`, 
+                  players: homePlayers, 
+                  color: 'text-blue-400' 
+                },
+                { 
+                  name: match.away_team?.name || match.away_player?.username || `用户_${match.away_player_id?.substring(0, 8)}`, 
+                  players: awayPlayers, 
+                  color: 'text-red-400' 
+                }
             ].map((group, idx) => (
                 <div key={idx}>
                     <h3 className={`${group.color} font-bold mb-3 border-b border-slate-700 pb-2`}>{group.name}</h3>

@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type TeamStats = {
-  id: number; name: string; logo_url: string | null;
+  id: number | string; name: string; logo_url: string | null;
+  played: number; won: number; drawn: number; lost: number;
+  legs_won: number; legs_lost: number; diff: number; points: number
+}
+
+type PlayerStats = {
+  id: string; username: string; avatar_url: string | null;
   played: number; won: number; drawn: number; lost: number;
   legs_won: number; legs_lost: number; diff: number; points: number
 }
@@ -33,14 +39,14 @@ const KnockoutBracket = ({ matches }: { matches: any[] }) => {
                  <div className="absolute top-1/2 -right-4 w-4 h-px bg-neutral-800"></div>
                )}
                
-               {/* 主队 */}
+               {/* 主队/主选手 */}
                <div className={`flex justify-between items-center mb-2 ${m.home_score > m.away_score ? 'text-white font-bold' : 'text-neutral-500'}`}>
-                 <span>{m.home_team?.name}</span>
+                 <span>{m.home_team?.name || m.home_player?.username || `用户_${m.home_player_id?.substring(0, 8)}`}</span>
                  <span className="font-mono">{m.is_finished ? m.home_score : '-'}</span>
                </div>
-               {/* 客队 */}
+               {/* 客队/客选手 */}
                <div className={`flex justify-between items-center ${m.away_score > m.home_score ? 'text-white font-bold' : 'text-neutral-500'}`}>
-                 <span>{m.away_team?.name}</span>
+                 <span>{m.away_team?.name || m.away_player?.username || `用户_${m.away_player_id?.substring(0, 8)}`}</span>
                  <span className="font-mono">{m.is_finished ? m.away_score : '-'}</span>
                </div>
              </div>
@@ -55,7 +61,7 @@ export default function RankingsPage() {
   const [loading, setLoading] = useState(true)
   const [tournaments, setTournaments] = useState<any[]>([])
   const [currentTournament, setCurrentTournament] = useState<any>(null)
-  const [standings, setStandings] = useState<TeamStats[]>([])
+  const [standings, setStandings] = useState<(TeamStats | PlayerStats)[]>([])
   const [knockoutMatches, setKnockoutMatches] = useState<any[]>([])
 
   // 1. 获取赛事列表
@@ -78,22 +84,39 @@ export default function RankingsPage() {
 
   async function fetchData(tournament: any) {
     setLoading(true)
-    const { data: matches } = await supabase
-      .from('matches')
-      .select(`*, home_team:teams!home_team_id(*), away_team:teams!away_team_id(*)`)
-      .eq('tournament_id', tournament.id)
+    
+    // 如果 tournament_type 字段不存在，默认为团队赛
+    const isIndividual = tournament?.tournament_type === 'individual'
+    
+    if (isIndividual) {
+      // 个人赛：查询选手信息
+      const { data: matches } = await supabase
+        .from('matches')
+        .select(`*, home_player:profiles!home_player_id(id, username, avatar_url), away_player:profiles!away_player_id(id, username, avatar_url)`)
+        .eq('tournament_id', tournament.id)
 
-    if (tournament.format === 'knockout') {
-        // 如果是淘汰赛，直接存比赛数据给树状图用
+      if (tournament.format === 'knockout') {
         setKnockoutMatches(matches || [])
+      } else {
+        calculatePlayerStandings(matches || [], tournament.scoring_rules || { win: 2, draw: 1, loss: 0 })
+      }
     } else {
-        // 如果是联赛，计算积分
-        calculateStandings(matches || [], tournament.scoring_rules || { win: 2, draw: 1, loss: 0 })
+      // 团队赛：查询队伍信息
+      const { data: matches } = await supabase
+        .from('matches')
+        .select(`*, home_team:teams!home_team_id(*), away_team:teams!away_team_id(*)`)
+        .eq('tournament_id', tournament.id)
+
+      if (tournament.format === 'knockout') {
+        setKnockoutMatches(matches || [])
+      } else {
+        calculateTeamStandings(matches || [], tournament.scoring_rules || { win: 2, draw: 1, loss: 0 })
+      }
     }
     setLoading(false)
   }
 
-  function calculateStandings(matches: any[], rules: any) {
+  function calculateTeamStandings(matches: any[], rules: any) {
     const map = new Map<number, TeamStats>()
     const initT = (t: any) => {
       if (!t || map.has(t.id)) return
@@ -120,7 +143,41 @@ export default function RankingsPage() {
       }
     })
     
-    // 排序
+    setStandings(Array.from(map.values()).sort((a, b) => b.points - a.points || b.diff - a.diff))
+  }
+
+  function calculatePlayerStandings(matches: any[], rules: any) {
+    const map = new Map<string, PlayerStats>()
+    const initP = (p: any) => {
+      if (!p || map.has(p.id)) return
+      map.set(p.id, { 
+        id: p.id, 
+        username: p.username || `用户_${p.id.substring(0, 8)}`, 
+        avatar_url: p.avatar_url, 
+        played: 0, won: 0, drawn: 0, lost: 0, legs_won: 0, legs_lost: 0, diff: 0, points: 0 
+      })
+    }
+
+    matches.forEach((m: any) => {
+      if (!m.is_finished) return
+      initP(m.home_player); initP(m.away_player)
+      const h = map.get(m.home_player_id); const a = map.get(m.away_player_id)
+      if(!h || !a) return
+
+      h.played++; a.played++
+      h.legs_won += m.home_score; h.legs_lost += m.away_score
+      a.legs_won += m.away_score; a.legs_lost += m.home_score
+      h.diff = h.legs_won - h.legs_lost; a.diff = a.legs_won - a.legs_lost
+
+      if (m.home_score > m.away_score) {
+        h.won++; h.points += rules.win; a.lost++; a.points += rules.loss
+      } else if (m.home_score < m.away_score) {
+        a.won++; a.points += rules.win; h.lost++; h.points += rules.loss
+      } else {
+        h.drawn++; h.points += rules.draw; a.drawn++; a.points += rules.draw
+      }
+    })
+    
     setStandings(Array.from(map.values()).sort((a, b) => b.points - a.points || b.diff - a.diff))
   }
 
@@ -166,7 +223,7 @@ export default function RankingsPage() {
               <thead>
                 <tr className="text-xs font-bold text-neutral-500 uppercase border-b border-neutral-800">
                   <th className="pb-4 w-12">#</th>
-                  <th className="pb-4">Team</th>
+                  <th className="pb-4">{currentTournament?.tournament_type === 'individual' ? 'Player' : 'Team'}</th>
                   <th className="pb-4 text-center">Pld</th>
                   <th className="pb-4 text-center hidden md:table-cell">W-D-L</th>
                   <th className="pb-4 text-center hidden sm:table-cell">Diff</th>
@@ -177,7 +234,11 @@ export default function RankingsPage() {
                 {standings.map((t, i) => (
                   <tr key={t.id} className="group hover:bg-neutral-900/50">
                     <td className="py-4 text-neutral-500 font-mono">{i+1}</td>
-                    <td className="py-4 font-bold text-white text-lg">{t.name}</td>
+                    <td className="py-4 font-bold text-white text-lg">
+                      {currentTournament?.tournament_type === 'individual' 
+                        ? (t as PlayerStats).username 
+                        : (t as TeamStats).name}
+                    </td>
                     <td className="py-4 text-center text-neutral-400">{t.played}</td>
                     <td className="py-4 text-center text-neutral-500 hidden md:table-cell font-mono text-xs">{t.won}-{t.drawn}-{t.lost}</td>
                     <td className={`py-4 text-center hidden sm:table-cell font-mono ${t.diff>0?'text-green-500':t.diff<0?'text-red-500':'text-neutral-500'}`}>{t.diff>0?`+${t.diff}`:t.diff}</td>

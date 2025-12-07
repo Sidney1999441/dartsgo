@@ -29,25 +29,45 @@ export default function SchedulePage() {
         .eq('user_id', user.id)
         .single()
 
-      if (!teamMember?.team_id) {
-        setLoading(false)
-        return
-      }
-
       // 3. 获取未来赛程（未完成且开始时间在未来）
       const now = new Date().toISOString()
-      const { data: futureMatches } = await supabase
+      
+      // 构建查询：团队赛或个人赛
+      let futureMatches: any[] = []
+      
+      if (teamMember?.team_id) {
+        // 团队赛：查询队伍的比赛
+        const { data: teamMatches } = await supabase
+          .from('matches')
+          .select(`
+            id, start_time, is_finished, home_score, away_score, tournament_id,
+            tournament:tournaments(id, name, tournament_type),
+            home_team:teams!home_team_id(id, name, logo_url),
+            away_team:teams!away_team_id(id, name, logo_url)
+          `)
+          .or(`home_team_id.eq.${teamMember.team_id},away_team_id.eq.${teamMember.team_id}`)
+          .eq('is_finished', false)
+          .gte('start_time', now)
+          .order('start_time', { ascending: true })
+        
+        if (teamMatches) futureMatches.push(...teamMatches)
+      }
+      
+      // 个人赛：查询选手的比赛
+      const { data: playerMatches } = await supabase
         .from('matches')
         .select(`
           id, start_time, is_finished, home_score, away_score, tournament_id,
-          tournament:tournaments(id, name),
-          home_team:teams!home_team_id(id, name, logo_url),
-          away_team:teams!away_team_id(id, name, logo_url)
+          tournament:tournaments(id, name, tournament_type),
+          home_player:profiles!home_player_id(id, username, avatar_url),
+          away_player:profiles!away_player_id(id, username, avatar_url)
         `)
-        .or(`home_team_id.eq.${teamMember.team_id},away_team_id.eq.${teamMember.team_id}`)
+        .or(`home_player_id.eq.${user.id},away_player_id.eq.${user.id}`)
         .eq('is_finished', false)
         .gte('start_time', now)
         .order('start_time', { ascending: true })
+      
+      if (playerMatches) futureMatches.push(...playerMatches)
 
       if (futureMatches) {
         setMatches(futureMatches)
@@ -181,13 +201,13 @@ export default function SchedulePage() {
                       >
                         {/* 比赛信息 */}
                         <div className="flex-1 p-5 flex items-center justify-between w-full">
-                          {/* 主队 */}
+                          {/* 主队/主选手 */}
                           <div className="flex items-center gap-3 w-1/3 justify-end">
                             <span className="font-bold text-white text-right hidden md:block group-hover:text-white transition-colors">
-                              {match.home_team?.name}
+                              {match.home_team?.name || match.home_player?.username || `用户_${match.home_player_id?.substring(0, 8)}`}
                             </span>
                             <span className="font-bold text-white text-right md:hidden">
-                              {match.home_team?.name?.substring(0, 4) || ''}
+                              {(match.home_team?.name || match.home_player?.username || '')?.substring(0, 4) || ''}
                             </span>
                             {match.home_team?.logo_url ? (
                               <img 
@@ -195,9 +215,15 @@ export default function SchedulePage() {
                                 className="w-12 h-12 rounded-full border border-neutral-700 group-hover:border-neutral-600 transition-colors"
                                 alt={match.home_team.name}
                               />
+                            ) : match.home_player?.avatar_url ? (
+                              <img 
+                                src={match.home_player.avatar_url} 
+                                className="w-12 h-12 rounded-full border border-neutral-700 group-hover:border-neutral-600 transition-colors"
+                                alt={match.home_player.username}
+                              />
                             ) : (
                               <div className="w-12 h-12 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center font-bold text-sm text-neutral-400 group-hover:border-neutral-600 transition-colors">
-                                {match.home_team?.name?.[0] || 'A'}
+                                {(match.home_team?.name || match.home_player?.username || 'A')?.[0]}
                               </div>
                             )}
                           </div>
@@ -215,7 +241,7 @@ export default function SchedulePage() {
                             </div>
                           </div>
 
-                          {/* 客队 */}
+                          {/* 客队/客选手 */}
                           <div className="flex items-center gap-3 w-1/3 justify-start">
                             {match.away_team?.logo_url ? (
                               <img 
@@ -223,16 +249,22 @@ export default function SchedulePage() {
                                 className="w-12 h-12 rounded-full border border-neutral-700 group-hover:border-neutral-600 transition-colors"
                                 alt={match.away_team.name}
                               />
+                            ) : match.away_player?.avatar_url ? (
+                              <img 
+                                src={match.away_player.avatar_url} 
+                                className="w-12 h-12 rounded-full border border-neutral-700 group-hover:border-neutral-600 transition-colors"
+                                alt={match.away_player.username}
+                              />
                             ) : (
                               <div className="w-12 h-12 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center font-bold text-sm text-neutral-400 group-hover:border-neutral-600 transition-colors">
-                                {match.away_team?.name?.[0] || 'B'}
+                                {(match.away_team?.name || match.away_player?.username || 'B')?.[0]}
                               </div>
                             )}
                             <span className="font-bold text-white text-left hidden md:block group-hover:text-white transition-colors">
-                              {match.away_team?.name}
+                              {match.away_team?.name || match.away_player?.username || `用户_${match.away_player_id?.substring(0, 8)}`}
                             </span>
                             <span className="font-bold text-white text-left md:hidden">
-                              {match.away_team?.name?.substring(0, 4) || ''}
+                              {(match.away_team?.name || match.away_player?.username || '')?.substring(0, 4) || ''}
                             </span>
                           </div>
                         </div>
