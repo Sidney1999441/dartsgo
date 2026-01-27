@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/app/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -23,6 +23,163 @@ export default function DashboardPage() {
   const [isTeamEditOpen, setIsTeamEditOpen] = useState(false)
   const [teamForm, setTeamForm] = useState({ name: '', logo_url: '' })
   const [uploadingTeamLogo, setUploadingTeamLogo] = useState(false)
+
+  // 裁剪器状态
+  const cropContainerSize = 360
+  const cropperRef = useRef<HTMLDivElement>(null)
+  const [isCropping, setIsCropping] = useState(false)
+  const [cropMode, setCropMode] = useState<'avatar' | 'team'>('avatar')
+  const [cropImageUrl, setCropImageUrl] = useState('')
+  const [cropFile, setCropFile] = useState<File | null>(null)
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 })
+  const [displayBox, setDisplayBox] = useState({ w: 0, h: 0, offsetX: 0, offsetY: 0 })
+  const [cropBox, setCropBox] = useState({ x: 0, y: 0, size: 200 })
+  const [dragging, setDragging] = useState(false)
+  const [dragDelta, setDragDelta] = useState({ x: 0, y: 0 })
+
+  // 打开裁剪器
+  const openCropper = (file: File, mode: 'avatar' | 'team') => {
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件（JPG/PNG/WebP）')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过 5MB')
+      return
+    }
+
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const container = cropContainerSize
+      let dw = container
+      let dh = container
+      if (img.width >= img.height) {
+        dh = container * (img.height / img.width)
+      } else {
+        dw = container * (img.width / img.height)
+      }
+      const offsetX = (container - dw) / 2
+      const offsetY = (container - dh) / 2
+      const baseSize = Math.min(dw, dh) * 0.8
+      const startX = offsetX + (dw - baseSize) / 2
+      const startY = offsetY + (dh - baseSize) / 2
+
+      // 清理旧 URL
+      if (cropImageUrl) URL.revokeObjectURL(cropImageUrl)
+
+      setNaturalSize({ w: img.width, h: img.height })
+      setDisplayBox({ w: dw, h: dh, offsetX, offsetY })
+      setCropBox({ x: startX, y: startY, size: baseSize })
+      setCropFile(file)
+      setCropImageUrl(url)
+      setCropMode(mode)
+      setIsCropping(true)
+    }
+    img.onerror = () => {
+      alert('图片加载失败，请更换文件')
+    }
+    img.src = url
+  }
+
+  const closeCropper = () => {
+    if (cropImageUrl) URL.revokeObjectURL(cropImageUrl)
+    setIsCropping(false)
+    setCropImageUrl('')
+    setCropFile(null)
+  }
+
+  const handleCropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isCropping) return
+    const rect = cropperRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setDragging(true)
+    setDragDelta({ x: x - cropBox.x, y: y - cropBox.y })
+  }
+
+  const handleCropMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragging) return
+    const rect = cropperRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const rawX = e.clientX - rect.left - dragDelta.x
+    const rawY = e.clientY - rect.top - dragDelta.y
+    const minX = displayBox.offsetX
+    const minY = displayBox.offsetY
+    const maxX = displayBox.offsetX + displayBox.w - cropBox.size
+    const maxY = displayBox.offsetY + displayBox.h - cropBox.size
+    setCropBox(prev => ({
+      ...prev,
+      x: Math.min(Math.max(rawX, minX), maxX),
+      y: Math.min(Math.max(rawY, minY), maxY)
+    }))
+  }
+
+  const handleCropMouseUp = () => setDragging(false)
+
+  const handleCropSizeChange = (val: number) => {
+    const minDim = Math.min(displayBox.w, displayBox.h)
+    const newSize = Math.max(40, minDim * val)
+    const maxX = displayBox.offsetX + displayBox.w - newSize
+    const maxY = displayBox.offsetY + displayBox.h - newSize
+    setCropBox(prev => ({
+      size: newSize,
+      x: Math.min(Math.max(prev.x, displayBox.offsetX), maxX),
+      y: Math.min(Math.max(prev.y, displayBox.offsetY), maxY)
+    }))
+  }
+
+  const confirmCropAndUpload = () => {
+    if (!cropFile || !cropImageUrl) return
+    const img = new Image()
+    img.onload = () => {
+      const scale = displayBox.w > 0 ? (naturalSize.w / displayBox.w) : 1
+      const sx = (cropBox.x - displayBox.offsetX) * scale
+      const sy = (cropBox.y - displayBox.offsetY) * scale
+      const sSize = cropBox.size * scale
+
+      const canvas = document.createElement('canvas')
+      canvas.width = sSize
+      canvas.height = sSize
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        alert('浏览器不支持裁剪')
+        return
+      }
+      ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, sSize, sSize)
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          alert('裁剪失败，请重试')
+          return
+        }
+        if (cropMode === 'avatar') {
+          await uploadAvatarFile(blob)
+        } else {
+          await uploadTeamLogoFile(blob)
+        }
+        closeCropper()
+      }, 'image/png')
+    }
+    img.onerror = () => alert('裁剪失败，图片读取异常')
+    img.src = cropImageUrl
+  }
+
+  const handleSelectAvatarFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) openCropper(file, 'avatar')
+    event.target.value = ''
+  }
+
+  const handleSelectTeamLogoFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!myTeam) {
+      alert('请先选择战队')
+      return
+    }
+    if (file) openCropper(file, 'team')
+    event.target.value = ''
+  }
 
   useEffect(() => {
     const init = async () => {
@@ -66,49 +223,39 @@ export default function DashboardPage() {
     init()
   }, [router])
 
-  // 上传头像到 Supabase Storage
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file || !user) return
-
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      alert('请选择图片文件')
+  // 上传头像（接受已裁剪好的 Blob）
+  const uploadAvatarFile = async (file: Blob) => {
+    if (!user) {
+      alert('请先登录后再上传头像')
       return
     }
-
-    // 验证文件大小（限制为 5MB）
-    if (file.size > 5 * 1024 * 1024) {
-      alert('图片大小不能超过 5MB')
-      return
-    }
-
     setUploadingAvatar(true)
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-      const filePath = `avatars/${fileName}`
+      const fileName = `${user.id}-${Date.now()}.png`
+      // 通过后端获取签名上传凭证（绕过 RLS）
+      const signedRes = await fetch('/api/admin/storage/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bucket: 'avatars', path: fileName })
+      })
+      if (!signedRes.ok) {
+        const msg = await signedRes.text()
+        throw new Error(`获取签名失败: ${msg}`)
+      }
+      const { token } = await signedRes.json()
 
-      // 上传文件到 Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true })
+        .uploadToSignedUrl(fileName, token, file, { contentType: 'image/png', upsert: true })
 
-      if (uploadError) {
-        throw uploadError
-      }
+      if (uploadError) throw uploadError
 
-      // 获取公共 URL
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
-
-      // 更新头像 URL
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
       setEditForm({ ...editForm, avatar_url: data.publicUrl })
       alert('头像上传成功！请点击保存按钮保存更改。')
     } catch (error: any) {
       console.error('上传失败:', error)
-      alert('上传失败: ' + (error.message || '未知错误'))
+      alert(`上传失败: ${error.message || '未知错误'}\n请确认文件小于 5MB，格式为 JPG/PNG/WebP`)
     } finally {
       setUploadingAvatar(false)
     }
@@ -148,49 +295,38 @@ export default function DashboardPage() {
     }
   }
 
-  // 上传战队 LOGO 到 Supabase Storage
-  const handleTeamLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file || !myTeam) return
-
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      alert('请选择图片文件')
+  // 上传战队 LOGO（接受已裁剪好的 Blob）
+  const uploadTeamLogoFile = async (file: Blob) => {
+    if (!myTeam) {
+      alert('请先选择战队')
       return
     }
-
-    // 验证文件大小（限制为 5MB）
-    if (file.size > 5 * 1024 * 1024) {
-      alert('图片大小不能超过 5MB')
-      return
-    }
-
     setUploadingTeamLogo(true)
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `team-${myTeam.id}-${Date.now()}.${fileExt}`
-      const filePath = `team-logos/${fileName}`
+      const fileName = `team-${myTeam.id}-${Date.now()}.png`
+      const signedRes = await fetch('/api/admin/storage/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bucket: 'team-logos', path: fileName })
+      })
+      if (!signedRes.ok) {
+        const msg = await signedRes.text()
+        throw new Error(`获取签名失败: ${msg}`)
+      }
+      const { token } = await signedRes.json()
 
-      // 上传文件到 Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('team-logos')
-        .upload(filePath, file, { upsert: true })
+        .uploadToSignedUrl(fileName, token, file, { contentType: 'image/png', upsert: true })
 
-      if (uploadError) {
-        throw uploadError
-      }
+      if (uploadError) throw uploadError
 
-      // 获取公共 URL
-      const { data } = supabase.storage
-        .from('team-logos')
-        .getPublicUrl(filePath)
-
-      // 更新战队 LOGO URL
+      const { data } = supabase.storage.from('team-logos').getPublicUrl(fileName)
       setTeamForm({ ...teamForm, logo_url: data.publicUrl })
       alert('战队 LOGO 上传成功！请点击保存按钮保存更改。')
     } catch (error: any) {
       console.error('上传失败:', error)
-      alert('上传失败: ' + (error.message || '未知错误'))
+      alert(`上传失败: ${error.message || '未知错误'}\n请确认文件小于 5MB，格式为 JPG/PNG/WebP`)
     } finally {
       setUploadingTeamLogo(false)
     }
@@ -513,20 +649,21 @@ export default function DashboardPage() {
                                     {uploadingAvatar ? '上传中...' : '📤 选择图片上传'}
                                     <input 
                                         type="file" 
-                                        accept="image/*"
-                                        onChange={handleAvatarUpload}
+                                        accept="image/png,image/jpeg,image/webp"
+                                        onChange={handleSelectAvatarFile}
                                         className="hidden"
                                         disabled={uploadingAvatar}
                                     />
                                 </label>
+                                <p className="text-[11px] text-neutral-500 mt-2 text-center">建议 1:1 方图，JPG/PNG/WebP，≤5MB</p>
                             </div>
                             <div className="text-xs text-neutral-500 text-center">或</div>
-                            <input 
-                                value={editForm.avatar_url} 
-                                onChange={e => setEditForm({...editForm, avatar_url: e.target.value})}
+                        <input 
+                            value={editForm.avatar_url} 
+                            onChange={e => setEditForm({...editForm, avatar_url: e.target.value})}
                                 className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 rounded-lg focus:border-white outline-none font-mono text-xs transition-colors"
-                                placeholder="https://example.com/image.jpg"
-                            />
+                            placeholder="https://example.com/image.jpg"
+                        />
                             {editForm.avatar_url && (
                                 <div className="mt-2 flex justify-center">
                                     <img src={editForm.avatar_url} alt="预览" className="w-20 h-20 rounded-full object-cover border border-neutral-700" />
@@ -567,12 +704,13 @@ export default function DashboardPage() {
                                     {uploadingTeamLogo ? '上传中...' : '📤 选择图片上传'}
                                     <input 
                                         type="file" 
-                                        accept="image/*"
-                                        onChange={handleTeamLogoUpload}
+                                        accept="image/png,image/jpeg,image/webp"
+                                        onChange={handleSelectTeamLogoFile}
                                         className="hidden"
                                         disabled={uploadingTeamLogo}
                                     />
                                 </label>
+                                <p className="text-[11px] text-neutral-500 mt-2 text-center">建议 1:1 方图，JPG/PNG/WebP，≤5MB</p>
                             </div>
                             <div className="text-xs text-neutral-500 text-center">或</div>
                             <input 
@@ -592,6 +730,70 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-2 gap-3 mt-8">
                     <button onClick={() => setIsTeamEditOpen(false)} className="bg-neutral-900 text-neutral-400 font-bold py-3 rounded-lg hover:bg-neutral-800 transition-colors">取消</button>
                     <button onClick={handleSaveTeam} className="bg-white text-black font-bold py-3 rounded-lg hover:bg-neutral-200 transition-colors">保存修改</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* 裁剪器弹窗 */}
+      {isCropping && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in" 
+             onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
+          <div className="bg-[#0f0f0f] border border-neutral-800 rounded-2xl shadow-2xl w-full max-w-2xl p-6 relative">
+            <h3 className="text-lg font-bold text-white mb-4">裁剪{cropMode === 'avatar' ? '头像' : '战队 LOGO'}</h3>
+            <div className="flex flex-col md:flex-row gap-6">
+              <div 
+                ref={cropperRef}
+                className="relative bg-neutral-900 border border-neutral-800 rounded-xl"
+                style={{ width: cropContainerSize, height: cropContainerSize }}
+                onMouseMove={handleCropMouseMove}
+              >
+                {cropImageUrl && (
+                  <>
+                    <img 
+                      src={cropImageUrl} 
+                      className="absolute inset-0 w-full h-full object-contain select-none"
+                      draggable={false}
+                    />
+                    <div 
+                      onMouseDown={handleCropMouseDown}
+                      className="absolute border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] cursor-move"
+                      style={{
+                        width: cropBox.size,
+                        height: cropBox.size,
+                        left: cropBox.x,
+                        top: cropBox.y,
+                        boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)'
+                      }}
+                    >
+                      <div className="absolute inset-0 border border-white/30 pointer-events-none"></div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex-1 space-y-4">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3">
+                  <div className="text-xs text-neutral-500 mb-2">裁剪尺寸</div>
+                  <input 
+                    type="range" 
+                    min={0.3} max={1} step={0.01} 
+                    value={Math.min(1, cropBox.size / Math.max(1, Math.min(displayBox.w, displayBox.h)))} 
+                    onChange={e => handleCropSizeChange(Number(e.target.value))}
+                    className="w-full accent-white"
+                  />
+                  <div className="text-[11px] text-neutral-500 mt-2 leading-relaxed">
+                    提示：支持非正方形原图，自由拖动选择裁剪区域，建议保持关键元素置中。
+                  </div>
+                </div>
+                <div className="text-[11px] text-neutral-500 leading-relaxed bg-neutral-900 border border-neutral-800 rounded-lg p-3">
+                  推荐上传 JPG/PNG/WebP，大小 ≤ 5MB。裁剪后的图片将以 1:1 输出并自动压缩为 PNG。
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={closeCropper} className="flex-1 bg-neutral-900 text-neutral-400 font-bold py-3 rounded-lg hover:bg-neutral-800 transition-colors">取消</button>
+                  <button onClick={confirmCropAndUpload} className="flex-1 bg-white text-black font-bold py-3 rounded-lg hover:bg-neutral-200 transition-colors">裁剪并上传</button>
+                </div>
+              </div>
                 </div>
             </div>
         </div>

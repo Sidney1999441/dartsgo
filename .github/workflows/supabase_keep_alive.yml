@@ -1,0 +1,29 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    # 每 3 天的 00:00（UTC）执行一次
+    - cron: "0 0 */3 * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Curl Supabase keepalive endpoint
+        env:
+          # 在 GitHub 仓库 Settings -> Secrets and variables -> Actions 里配置
+          # 名为 SUPABASE_KEEPALIVE_URL 的仓库密钥
+          SUPABASE_KEEPALIVE_URL: ${{ secrets.SUPABASE_KEEPALIVE_URL }}
+        run: |
+          if [ -z "$SUPABASE_KEEPALIVE_URL" ]; then
+            echo "SUPABASE_KEEPALIVE_URL 未配置为仓库密钥"
+            exit 1
+          fi
+
+          echo "Requesting Supabase keepalive endpoint..."
+          # 如需 POST / header / body，可按需修改
+          curl -sS -X GET "$SUPABASE_KEEPALIVE_URL" \
+            -H "Accept: application/json" \
+            -o /dev/null -w "HTTP_STATUS=%{http_code}\n"

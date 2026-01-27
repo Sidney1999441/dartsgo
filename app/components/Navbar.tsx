@@ -164,9 +164,9 @@ export default function Navbar() {
                   登录
                 </Link>
               </>
-            )}
-          </div>
+          )}
         </div>
+      </div>
       )}
     </nav>
   )

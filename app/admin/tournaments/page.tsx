@@ -12,6 +12,7 @@ export default function AdminTournamentsPage() {
   const [tournamentType, setTournamentType] = useState<'team' | 'individual'>('team') // 新增：团队赛/个人赛
   const [format, setFormat] = useState('league') 
   const [dartType, setDartType] = useState('steel') 
+  const [winTarget, setWinTarget] = useState<number>(3) // 每场几局几胜（胜场）
   
   // === 积分规则 (新功能) ===
   const [pointsRule, setPointsRule] = useState({ win: 2, draw: 1, loss: 0 })
@@ -100,24 +101,24 @@ export default function AdminTournamentsPage() {
     return schedule
   }
 
-  // === 瑞士轮算法 (个人赛) ===
-  const generateSwissRound = (players: string[], existingMatches: any[] = [], roundNumber: number = 1) => {
+  // === 瑞士轮算法 (支持个人赛/团队赛) ===
+  const generateSwissRound = <T extends string | number>(players: T[], existingMatches: any[] = [], roundNumber: number = 1) => {
     if (players.length < 2) return []
 
     // 计算每个选手的积分和对手历史
-    const playerStats = new Map<string, { points: number, opponents: Set<string>, wins: number, losses: number }>()
+    const playerStats = new Map<T, { points: number, opponents: Set<T>, wins: number, losses: number }>()
     
     players.forEach(p => {
-      playerStats.set(p, { points: 0, opponents: new Set(), wins: 0, losses: 0 })
+      playerStats.set(p, { points: 0, opponents: new Set<T>(), wins: 0, losses: 0 })
     })
 
     // 从已有比赛中计算积分
     existingMatches.forEach(m => {
       if (!m.is_finished) return
-      const homeId = m.home_player_id || m.home_team_id
-      const awayId = m.away_player_id || m.away_team_id
+      const homeId = (m.home_player_id ?? m.home_team_id) as T | undefined
+      const awayId = (m.away_player_id ?? m.away_team_id) as T | undefined
       
-      if (playerStats.has(homeId) && playerStats.has(awayId)) {
+      if (homeId !== undefined && awayId !== undefined && playerStats.has(homeId) && playerStats.has(awayId)) {
         const home = playerStats.get(homeId)!
         const away = playerStats.get(awayId)!
         
@@ -226,16 +227,16 @@ export default function AdminTournamentsPage() {
           if (tError.message?.includes('tournament_type') || tError.message?.includes('column')) {
             console.warn('tournament_type 字段不存在，使用默认团队赛模式')
             const { data: retryTournament, error: retryError } = await supabase
-              .from('tournaments')
-              .insert({ 
-                name, 
-                status: 'upcoming', 
-                format, 
-                dart_type: dartType,
+            .from('tournaments')
+            .insert({ 
+              name, 
+              status: 'upcoming', 
+              format, 
+              dart_type: dartType,
                 scoring_rules: format === 'knockout' ? null : pointsRule
-              })
-              .select().single()
-            
+            })
+            .select().single()
+
             if (retryError) throw retryError
             // 使用重试的结果，并在内存中标记 tournament_type
             tournament = retryTournament ? { ...retryTournament, tournament_type: tournamentType } : null
@@ -254,26 +255,55 @@ export default function AdminTournamentsPage() {
 
         // === 团队赛逻辑 ===
         if (tournamentType === 'team') {
-            let teams = [...selectedTeams]
-            if (balanceMode) teams.sort((a, b) => getTeamPower(b) - getTeamPower(a))
-            else teams.sort(() => Math.random() - 0.5)
+        let teams = [...selectedTeams]
+        if (balanceMode) teams.sort((a, b) => getTeamPower(b) - getTeamPower(a))
+        else teams.sort(() => Math.random() - 0.5)
 
-            if (format === 'league' || format === 'double_league') {
-                const rounds = generateRoundRobin(teams)
-                if (format === 'double_league') {
-                    const secondHalf = rounds.map(round => round.map(m => ({ home: m.away, away: m.home })))
-                    rounds.push(...secondHalf)
-                }
+        if (format === 'league' || format === 'double_league') {
+            const rounds = generateRoundRobin(teams)
+            if (format === 'double_league') {
+                const secondHalf = rounds.map(round => round.map(m => ({ home: m.away, away: m.home })))
+                rounds.push(...secondHalf)
+            }
 
-                rounds.forEach((roundMatches, roundIndex) => {
+            rounds.forEach((roundMatches, roundIndex) => {
+                const roundDate = new Date(baseDate)
+                if (intervalType === 'week') roundDate.setDate(baseDate.getDate() + (roundIndex * 7))
+                else if (intervalType === 'day') roundDate.setDate(baseDate.getDate() + (roundIndex * 1))
+                
+                roundMatches.forEach((m, i) => {
+                    let matchTime = new Date(roundDate)
+                    if (intervalType === 'manual') matchTime = new Date(baseDate.getTime() + (matchesToInsert.length * matchDuration * 60000))
+                    
+                    matchesToInsert.push({
+                        tournament_id: tournament.id,
+                        home_team_id: m.home,
+                        away_team_id: m.away,
+                        start_time: matchTime.toISOString(),
+                        is_finished: false,
+                        match_type: baseType,
+                        round_name: `Round ${roundIndex + 1}`,
+                            round_order: roundIndex + 1,
+                            win_target: winTarget || null
+                    })
+                })
+            })
+            } 
+            else if (format === 'swiss') {
+                const numRounds = Math.ceil(Math.log2(teams.length)) + 1
+                let existingMatches: any[] = []
+
+                for (let roundIndex = 0; roundIndex < numRounds; roundIndex++) {
+                    const roundMatches = generateSwissRound<number>(teams, existingMatches, roundIndex + 1)
+
                     const roundDate = new Date(baseDate)
                     if (intervalType === 'week') roundDate.setDate(baseDate.getDate() + (roundIndex * 7))
                     else if (intervalType === 'day') roundDate.setDate(baseDate.getDate() + (roundIndex * 1))
-                    
-                    roundMatches.forEach((m, i) => {
+
+                    roundMatches.forEach((m) => {
                         let matchTime = new Date(roundDate)
                         if (intervalType === 'manual') matchTime = new Date(baseDate.getTime() + (matchesToInsert.length * matchDuration * 60000))
-                        
+
                         matchesToInsert.push({
                             tournament_id: tournament.id,
                             home_team_id: m.home,
@@ -282,23 +312,25 @@ export default function AdminTournamentsPage() {
                             is_finished: false,
                             match_type: baseType,
                             round_name: `Round ${roundIndex + 1}`,
-                            round_order: roundIndex + 1
+                            round_order: roundIndex + 1,
+                            win_target: winTarget || null
                         })
                     })
-                })
-            } 
-            else if (format === 'knockout') {
-                const totalMatches = Math.floor(teams.length / 2)
-                for(let i=0; i<totalMatches; i++) {
-                    matchesToInsert.push({
-                        tournament_id: tournament.id,
-                        home_team_id: teams[i*2],
-                        away_team_id: teams[i*2+1],
-                        start_time: startTime,
-                        is_finished: false,
-                        match_type: baseType,
+                }
+        } 
+        else if (format === 'knockout') {
+             const totalMatches = Math.floor(teams.length / 2)
+             for(let i=0; i<totalMatches; i++) {
+                 matchesToInsert.push({
+                    tournament_id: tournament.id,
+                    home_team_id: teams[i*2],
+                    away_team_id: teams[i*2+1],
+                    start_time: startTime,
+                    is_finished: false,
+                    match_type: baseType,
                         round_name: 'Quarter-Finals',
-                        round_order: 1
+                        round_order: 1,
+                        win_target: winTarget || null
                     })
                 }
             }
@@ -332,7 +364,8 @@ export default function AdminTournamentsPage() {
                             is_finished: false,
                             match_type: baseType,
                             round_name: `Round ${roundIndex + 1}`,
-                            round_order: roundIndex + 1
+                            round_order: roundIndex + 1,
+                            win_target: winTarget || null
                         })
                     })
 
@@ -368,7 +401,8 @@ export default function AdminTournamentsPage() {
                             is_finished: false,
                             match_type: baseType,
                             round_name: `Round ${roundIndex + 1}`,
-                            round_order: roundIndex + 1
+                            round_order: roundIndex + 1,
+                            win_target: winTarget || null
                         })
                     })
                 })
@@ -384,14 +418,25 @@ export default function AdminTournamentsPage() {
                         is_finished: false,
                         match_type: baseType,
                         round_name: 'Quarter-Finals',
-                        round_order: 1
+                        round_order: 1,
+                        win_target: winTarget || null
                     })
                 }
-            }
+             }
         }
 
         if (matchesToInsert.length > 0) {
-            await supabase.from('matches').insert(matchesToInsert)
+            let { error: matchesError } = await supabase.from('matches').insert(matchesToInsert)
+            // 如果 win_target 列不存在，降级重试（去掉该字段）
+            if (matchesError?.message?.includes('win_target')) {
+              const stripped = matchesToInsert.map(m => {
+                const { win_target, ...rest } = m
+                return rest
+              })
+              const retry = await supabase.from('matches').insert(stripped)
+              matchesError = retry.error
+            }
+            if (matchesError) throw matchesError
         }
 
         alert('✅ 赛事创建成功！')
@@ -484,14 +529,15 @@ export default function AdminTournamentsPage() {
                         <>
                             <OptionBtn label="Single League" active={format==='league'} onClick={()=>setFormat('league')} />
                             <OptionBtn label="Double League" active={format==='double_league'} onClick={()=>setFormat('double_league')} />
+                            <OptionBtn label="Swiss Round" active={format==='swiss'} onClick={()=>setFormat('swiss')} />
                             <OptionBtn label="Knockout" active={format==='knockout'} onClick={()=>setFormat('knockout')} />
                         </>
                     ) : (
                         <>
                             <OptionBtn label="Swiss Round" active={format==='swiss'} onClick={()=>setFormat('swiss')} />
-                            <OptionBtn label="Single League" active={format==='league'} onClick={()=>setFormat('league')} />
-                            <OptionBtn label="Double League" active={format==='double_league'} onClick={()=>setFormat('double_league')} />
-                            <OptionBtn label="Knockout" active={format==='knockout'} onClick={()=>setFormat('knockout')} />
+                    <OptionBtn label="Single League" active={format==='league'} onClick={()=>setFormat('league')} />
+                    <OptionBtn label="Double League" active={format==='double_league'} onClick={()=>setFormat('double_league')} />
+                    <OptionBtn label="Knockout" active={format==='knockout'} onClick={()=>setFormat('knockout')} />
                         </>
                     )}
                 </div>
@@ -518,11 +564,15 @@ export default function AdminTournamentsPage() {
                 </div>
             )}
 
-            {/* 时间设置 */}
-            <div className="grid md:grid-cols-2 gap-6 pt-4 border-t border-neutral-800/50">
+            {/* 时间/场次设置 */}
+            <div className="grid md:grid-cols-3 gap-6 pt-4 border-t border-neutral-800/50">
                 <div className="space-y-2">
                     <label className="text-xs text-neutral-400">开始时间</label>
                     <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full bg-[#0a0a0a] border border-neutral-700 text-white p-2 outline-none"/>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-xs text-neutral-400">几局几胜（胜场）</label>
+                    <input type="number" min={1} value={winTarget} onChange={e=>setWinTarget(Number(e.target.value)||0)} className="w-full bg-[#0a0a0a] border border-neutral-700 text-white p-2 outline-none"/>
                 </div>
                 <div className="space-y-2">
                     <label className="text-xs text-neutral-400">比赛频率</label>
@@ -538,23 +588,23 @@ export default function AdminTournamentsPage() {
 
       {/* 4. 参赛队伍/选手 */}
       {tournamentType === 'team' ? (
-        <section className="space-y-4">
-          <div className="flex justify-between items-end">
+      <section className="space-y-4">
+        <div className="flex justify-between items-end">
                <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-wider">04. 参赛队伍</h3>
-               <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input type="checkbox" checked={balanceMode} onChange={e=>setBalanceMode(e.target.checked)} className="accent-white"/>
-                  <span className="text-xs text-neutral-400">自动平衡队伍实力</span>
-               </label>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto pr-2">
-              {allTeams.map(t => (
-                  <div key={t.id} onClick={()=>toggleTeam(t.id)} className={`cursor-pointer px-3 py-2 border text-xs font-bold truncate transition-all ${selectedTeams.includes(t.id)?'bg-white text-black border-white':'border-neutral-800 bg-[#0a0a0a] text-neutral-400 hover:border-neutral-600'}`}>
-                      {selectedTeams.includes(t.id) ? '● ' : ''} {t.name}
-                  </div>
-              ))}
-          </div>
-        </section>
+             <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={balanceMode} onChange={e=>setBalanceMode(e.target.checked)} className="accent-white"/>
+                <span className="text-xs text-neutral-400">自动平衡队伍实力</span>
+             </label>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto pr-2">
+            {allTeams.map(t => (
+                <div key={t.id} onClick={()=>toggleTeam(t.id)} className={`cursor-pointer px-3 py-2 border text-xs font-bold truncate transition-all ${selectedTeams.includes(t.id)?'bg-white text-black border-white':'border-neutral-800 bg-[#0a0a0a] text-neutral-400 hover:border-neutral-600'}`}>
+                    {selectedTeams.includes(t.id) ? '● ' : ''} {t.name}
+                </div>
+            ))}
+        </div>
+      </section>
       ) : (
         <section className="space-y-4">
           <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-wider">04. 参赛选手</h3>

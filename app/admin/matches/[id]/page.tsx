@@ -19,6 +19,7 @@ export default function AdminMatchEditPage() {
   const [awayScore, setAwayScore] = useState(0)
   const [isFinished, setIsFinished] = useState(false)
   const [currentMatchType, setCurrentMatchType] = useState('steel') 
+  const [winTarget, setWinTarget] = useState<number>(3) // 几局几胜（胜场目标）
   
   // 新增：时间和轮次编辑
   const [startTime, setStartTime] = useState('')
@@ -29,46 +30,72 @@ export default function AdminMatchEditPage() {
   useEffect(() => {
     if (!matchId) return
     const initData = async () => {
-      // 先获取比赛信息，判断是团队赛还是个人赛
-      const { data: matchData } = await supabase
+      try {
+        // 先尝试带关联查询
+        const { data: matchData, error } = await supabase
         .from('matches')
-        .select(`*, home_team:teams!home_team_id(*), away_team:teams!away_team_id(*), home_player:profiles!home_player_id(id, username, avatar_url), away_player:profiles!away_player_id(id, username, avatar_url), tournaments(tournament_type)`)
+          .select(`*, home_team:teams!home_team_id(*), away_team:teams!away_team_id(*), home_player:profiles!home_player_id(id, username, avatar_url), away_player:profiles!away_player_id(id, username, avatar_url), tournaments(tournament_type)`)
         .eq('id', matchId)
         .single()
       
-      if (matchData) {
-        setMatch(matchData)
-        setHomeScore(matchData.home_score || 0)
-        setAwayScore(matchData.away_score || 0)
-        setIsFinished(matchData.is_finished || false)
-        setCurrentMatchType(matchData.match_type || 'steel')
-        setRoundName(matchData.round_name || '')
+        let finalMatch = matchData
 
-        // 初始化时间 (转为 input datetime-local 格式)
-        if (matchData.start_time) {
-            const dt = new Date(matchData.start_time)
+        if (error || !matchData) {
+          console.warn('match join fetch error, fallback to base fields', error?.message || error)
+          const { data: baseMatch, error: baseErr } = await supabase
+            .from('matches')
+            .select('*')
+            .eq('id', matchId)
+            .single()
+          if (baseErr) {
+            console.error('match base fetch error', baseErr?.message || baseErr)
+            alert('读取比赛失败: ' + (baseErr?.message || JSON.stringify(baseErr)))
+            setMatch({})
+            return
+          }
+          finalMatch = baseMatch
+          const { data: tData } = await supabase.from('tournaments').select('tournament_type').eq('id', baseMatch.tournament_id).single()
+          if (tData) finalMatch = { ...finalMatch, tournaments: tData }
+        }
+        
+        if (finalMatch) {
+          setMatch(finalMatch)
+          setHomeScore(finalMatch.home_score || 0)
+          setAwayScore(finalMatch.away_score || 0)
+          setIsFinished(finalMatch.is_finished || false)
+          setCurrentMatchType(finalMatch.match_type || 'steel')
+          setRoundName(finalMatch.round_name || '')
+          setWinTarget(finalMatch.win_target || 3)
+
+          if (finalMatch.start_time) {
+              const dt = new Date(finalMatch.start_time)
             const localIso = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
             setStartTime(localIso)
         }
 
-        // 判断是团队赛还是个人赛
-        const isIndividual = matchData.tournaments?.tournament_type === 'individual' || matchData.home_player_id
+          const isIndividual = finalMatch.tournaments?.tournament_type === 'individual' || finalMatch.home_player_id
 
-        if (isIndividual) {
-          // 个人赛：直接使用选手信息
-          if (matchData.home_player) setHomePlayers([matchData.home_player])
-          if (matchData.away_player) setAwayPlayers([matchData.away_player])
-        } else {
-          // 团队赛：获取队伍成员
-          const { data: members } = await supabase
-            .from('team_members')
-            .select('team_id, profiles(id, username)')
-            .in('team_id', [matchData.home_team_id, matchData.away_team_id])
-          
-          if (members) {
-              setHomePlayers(members.filter((m: any) => m.team_id === matchData.home_team_id).map((m: any) => m.profiles))
-              setAwayPlayers(members.filter((m: any) => m.team_id === matchData.away_team_id).map((m: any) => m.profiles))
-          }
+          if (isIndividual) {
+            if (finalMatch.home_player) setHomePlayers([finalMatch.home_player])
+            else if (finalMatch.home_player_id) {
+              const { data: hp } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', finalMatch.home_player_id).single()
+              if (hp) setHomePlayers([hp])
+            }
+            if (finalMatch.away_player) setAwayPlayers([finalMatch.away_player])
+            else if (finalMatch.away_player_id) {
+              const { data: ap } = await supabase.from('profiles').select('id, username, avatar_url').eq('id', finalMatch.away_player_id).single()
+              if (ap) setAwayPlayers([ap])
+            }
+          } else {
+        const { data: members } = await supabase
+          .from('team_members')
+          .select('team_id, profiles(id, username)')
+              .in('team_id', [finalMatch.home_team_id, finalMatch.away_team_id])
+        
+        if (members) {
+                setHomePlayers(members.filter((m: any) => m.team_id === finalMatch.home_team_id).map((m: any) => m.profiles))
+                setAwayPlayers(members.filter((m: any) => m.team_id === finalMatch.away_team_id).map((m: any) => m.profiles))
+            }
         }
 
         const { data: savedStats } = await supabase.from('match_stats').select('*').eq('match_id', matchId)
@@ -83,6 +110,11 @@ export default function AdminMatchEditPage() {
             })
             setStatsMap(newMap)
         }
+        }
+      } catch (err: any) {
+        console.error('initData error', err?.message || err, err)
+        alert('加载比赛数据异常: ' + (err?.message || JSON.stringify(err)))
+        setMatch({})
       }
     }
     initData()
@@ -92,18 +124,58 @@ export default function AdminMatchEditPage() {
     setStatsMap((prev: any) => ({ ...prev, [pid]: { ...prev[pid], [field]: val } }))
   }
 
+  // 通过服务端 API 重新汇总指定选手生涯数据（绕过 RLS）
+  const recalcPlayers = async (playerIds: string[]) => {
+    if (!playerIds.length) return
+    const res = await fetch('/api/admin/recalc-players', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerIds })
+    })
+    if (!res.ok) {
+      const msg = await res.text()
+      console.error('recalcPlayers failed', msg)
+      alert('生涯数据更新失败: ' + msg)
+    }
+  }
+
   const handleSave = async () => {
-    // 保存基本信息
-    await supabase.from('matches').update({
+    // 自动完赛判定：达到胜场目标则标记完赛
+    const target = Number(winTarget || 0)
+    const autoFinished = target > 0 && (homeScore >= target || awayScore >= target)
+    const finishedFlag = autoFinished ? true : isFinished
+
+    // 保存基本信息（带 win_target，列不存在则降级不写）
+    const basePayload: any = {
+      home_score: homeScore, 
+      away_score: awayScore, 
+      is_finished: finishedFlag, 
+      match_type: currentMatchType,
+      start_time: startTime ? new Date(startTime).toISOString() : null,
+      round_name: roundName,
+      win_target: target || null
+    }
+    let updateError = null
+    const { error: firstErr } = await supabase.from('matches').update(basePayload).eq('id', matchId)
+    if (firstErr?.message?.includes('win_target')) {
+      const { error: retryErr } = await supabase.from('matches').update({
         home_score: homeScore, 
         away_score: awayScore, 
-        is_finished: isFinished, 
+        is_finished: finishedFlag, 
         match_type: currentMatchType,
-        start_time: new Date(startTime).toISOString(), // 保存新时间
-        round_name: roundName // 保存新轮次名
+        start_time: startTime ? new Date(startTime).toISOString() : null,
+        round_name: roundName
     }).eq('id', matchId)
+      updateError = retryErr
+    } else {
+      updateError = firstErr
+    }
+    if (updateError) {
+      alert('保存失败: ' + updateError.message)
+      return
+    }
 
-    // 保存详细数据 (这部分保持不变)
+    // 保存详细数据
     const statsArray: any[] = []
     const allPlayers = [...homePlayers, ...awayPlayers]
     allPlayers.forEach(p => {
@@ -111,10 +183,12 @@ export default function AdminMatchEditPage() {
        if (Object.values(s).some(val => val)) {
          statsArray.push({
             match_id: matchId, player_id: p.id,
-            team_id: homePlayers.find(hp => hp.id === p.id) ? match?.home_team_id : match?.away_team_id,
-            ppd: s.ppd || 0, score_180s: s.s180 || 0, score_140s: s.s140 || 0,
-            hat_trick: s.hat || 0, white_horse: s.horse || 0, mpr: s.mpr || 0,
-            checkout_rate: s.co_rate || 0, high_finish: s.high_finish || 0
+            team_id: (match?.tournaments?.tournament_type === 'individual' || match?.home_player_id || match?.away_player_id)
+              ? null
+              : (homePlayers.find(hp => hp.id === p.id) ? match?.home_team_id : match?.away_team_id),
+            ppd: Number(s.ppd || 0), score_180s: Number(s.s180 || 0), score_140s: Number(s.s140 || 0),
+            hat_trick: Number(s.hat || 0), white_horse: Number(s.horse || 0), mpr: Number(s.mpr || 0),
+            checkout_rate: Number(s.co_rate || 0), high_finish: Number(s.high_finish || 0)
          })
        }
     })
@@ -122,7 +196,15 @@ export default function AdminMatchEditPage() {
     if (statsArray.length > 0) {
         await supabase.from('match_stats').delete().eq('match_id', matchId)
         await supabase.from('match_stats').insert(statsArray)
+    } else {
+        // 没有输入任何数据时清空原有记录
+        await supabase.from('match_stats').delete().eq('match_id', matchId)
     }
+
+    // 更新相关选手生涯数据（增量版）
+    const playerIds = Array.from(new Set(allPlayers.map(p => p.id))) as string[]
+    await recalcPlayers(playerIds)
+
     alert('✅ 比赛信息已更新')
     router.push('/admin/schedule')
   }
@@ -130,7 +212,15 @@ export default function AdminMatchEditPage() {
   if (!match) return <div className="p-8">Loading...</div>
 
   const StatInput = ({ pid, field, ph, width = 'w-16' }: any) => (
-    <input placeholder={ph} value={statsMap[pid]?.[field] || ''} onChange={e => handleStatChange(pid, field, e.target.value)} className={`bg-slate-900 ${width} px-2 py-1 text-sm rounded border border-slate-700 text-center focus:border-blue-500 outline-none`}/>
+    <input 
+      type="text"
+      inputMode="decimal"
+      pattern="[0-9.]*"
+      placeholder={ph} 
+      value={statsMap[pid]?.[field] ?? ''} 
+      onChange={e => handleStatChange(pid, field, e.target.value)} 
+      className={`bg-slate-900 ${width} px-2 py-1 text-sm rounded border border-slate-700 text-center focus:border-blue-500 outline-none`} 
+    />
   )
 
   return (
@@ -188,6 +278,16 @@ export default function AdminMatchEditPage() {
                 <input type="checkbox" checked={isFinished} onChange={e => setIsFinished(e.target.checked)} className="w-5 h-5"/>
                 <span className={isFinished ? "text-green-400 font-bold" : "text-slate-400"}>已完赛</span>
             </label>
+            <div className="ml-4 flex items-center gap-2 text-sm text-slate-400">
+              <span>几局几胜</span>
+              <input 
+                type="number" 
+                min={1} 
+                value={winTarget} 
+                onChange={e => setWinTarget(Number(e.target.value) || 0)}
+                className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-center"
+              />
+            </div>
         </div>
 
         {/* 3. 详细数据表格 */}
